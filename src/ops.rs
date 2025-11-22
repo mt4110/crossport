@@ -1,7 +1,11 @@
 use crate::core::{ProcessInfo, SystemSnapshot};
 use anyhow::{Context, Result};
+
+#[cfg(unix)]
 use nix::sys::signal::{self, Signal};
+#[cfg(unix)]
 use nix::unistd::Pid;
+
 #[cfg(windows)]
 use std::process::Command;
 pub fn scan_ports(snapshot: &SystemSnapshot, from: u16, to: u16) -> Result<Vec<ProcessInfo>> {
@@ -33,7 +37,12 @@ pub fn suggest_port(_snapshot: &SystemSnapshot, base: u16, max: u16) -> Result<u
     anyhow::bail!("No free ports found in range {}-{}", base, max);
 }
 
-pub fn kill_process(pid: u32, signal_name: Option<&str>, force: bool, dry_run: bool) -> Result<()> {
+pub fn kill_process(
+    pid: u32,
+    _signal_name: Option<&str>,
+    force: bool,
+    dry_run: bool,
+) -> Result<()> {
     if dry_run {
         println!("Would kill PID {}", pid);
         return Ok(());
@@ -50,7 +59,7 @@ pub fn kill_process(pid: u32, signal_name: Option<&str>, force: bool, dry_run: b
             return Ok(());
         }
 
-        if let Some(sig_name) = signal_name {
+        if let Some(sig_name) = _signal_name {
             let sig = match sig_name.to_uppercase().as_str() {
                 "INT" => Signal::SIGINT,
                 "TERM" => Signal::SIGTERM,
