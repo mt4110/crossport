@@ -125,7 +125,7 @@ fn get_docker_containers() -> Result<HashMap<u16, String>> {
                     for port_def in ports_str.split(',') {
                         if let Some(host_part) = port_def.split("->").next() {
                             // host_part: 0.0.0.0:8080 or :::8080
-                            if let Some(port_str) = host_part.split(':').last() {
+                            if let Some(port_str) = host_part.split(':').next_back() {
                                 if let Ok(port) = port_str.parse::<u16>() {
                                     map.insert(port, name.to_string());
                                 }
@@ -164,12 +164,12 @@ fn scan_ports_unix() -> Result<Vec<(u32, u16)>> {
     let mut current_pid = None;
 
     for line in stdout.lines() {
-        if line.starts_with('p') {
-            current_pid = line[1..].parse::<u32>().ok();
-        } else if line.starts_with('n') {
+        if let Some(stripped) = line.strip_prefix('p') {
+            current_pid = stripped.parse::<u32>().ok();
+        } else if let Some(stripped) = line.strip_prefix('n') {
             if let Some(pid) = current_pid {
                 // Example: n*:12345
-                let port_part = line[1..].split(':').last().unwrap_or("");
+                let port_part = stripped.split(':').next_back().unwrap_or("");
                 if let Ok(port) = port_part.parse::<u16>() {
                     results.push((pid, port));
                 }
@@ -197,7 +197,12 @@ fn scan_ports_windows() -> Result<Vec<(u32, u16)>> {
                 let local_addr = parts[1];
                 let pid_str = parts[parts.len() - 1];
 
-                if let Ok(port) = local_addr.split(':').last().unwrap_or("").parse::<u16>() {
+                if let Ok(port) = local_addr
+                    .split(':')
+                    .next_back()
+                    .unwrap_or("")
+                    .parse::<u16>()
+                {
                     if let Ok(pid) = pid_str.parse::<u32>() {
                         results.push((pid, port));
                     }

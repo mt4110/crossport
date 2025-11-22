@@ -15,6 +15,7 @@
     "nixfmt",
     "nixos",
     "nixpkgs",
+    "oxalica",
     "pids",
     "pkgs",
     "ratatui",
@@ -22,6 +23,7 @@
     "rustup",
     "stdenv",
     "sysinfo",
+    "takemura",
     "taskkill",
     "unistd"
   ]

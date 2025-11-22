@@ -30,8 +30,8 @@ pub fn print_scan_result(infos: &[ProcessInfo]) {
     }
 
     println!(
-        "{:<6} {:<8} {:<8} {:<8} {:<8} {}",
-        "PORT", "PID", "USER", "CMD", "KIND", "PROJ"
+        "{:<6} {:<8} {:<8} {:<8} {:<8} PROJ",
+        "PORT", "PID", "USER", "CMD", "KIND"
     );
     for info in infos {
         let proj = if let Some(container) = &info.container_name {

@@ -21,7 +21,7 @@ impl App {
     pub fn new() -> Result<Self> {
         let snapshot = SystemSnapshot::capture()?;
         let mut processes = Vec::new();
-        for (_, infos) in &snapshot.processes_by_port {
+        for infos in snapshot.processes_by_port.values() {
             processes.extend(infos.clone());
         }
         processes.sort_by_key(|p| p.port);
@@ -100,7 +100,7 @@ impl App {
 
         let snapshot = SystemSnapshot::capture()?;
         let mut processes = Vec::new();
-        for (_, infos) in &snapshot.processes_by_port {
+        for infos in snapshot.processes_by_port.values() {
             processes.extend(infos.clone());
         }
         processes.sort_by_key(|p| p.port);
