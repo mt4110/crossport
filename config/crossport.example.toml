@@ -1,0 +1,14 @@
+[general]
+# ポート番号を CLI 引数で指定しなかったときに使うデフォルト
+default_port = 8088
+
+# OS ごとのバックエンド戦略
+[backend]
+# auto | netstat | lsof | ss みたいなイメージ
+strategy = "auto"
+
+[output]
+# true なら色付き出力
+color = true
+# true なら詳細情報を多めに出す
+verbose = false

@@ -1,0 +1,28 @@
+{
+  "version": "0.2",
+  "ignorePaths": [],
+  "dictionaryDefinitions": [],
+  "dictionaries": [],
+  "words": [
+    "clippy",
+    "crossport",
+    "Crossterm",
+    "direnv",
+    "dtolnay",
+    "envrc",
+    "getuid",
+    "libc",
+    "nixfmt",
+    "nixos",
+    "nixpkgs",
+    "pids",
+    "pkgs",
+    "ratatui",
+    "rects",
+    "rustup",
+    "stdenv",
+    "sysinfo",
+    "taskkill",
+    "unistd"
+  ]
+}
