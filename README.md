@@ -4,7 +4,9 @@
 
 [![CI](https://github.com/your-username/crossport/workflows/CI/badge.svg)](https://github.com/your-username/crossport/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
-
+<p align="center">
+  <img src="./assets/demo.gif" width="650" alt="Crossport demo" />
+</p>
 ## Why Crossport?
 
 Unlike generic process killers, `crossport` is built specifically for developers:
