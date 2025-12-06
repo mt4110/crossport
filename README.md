@@ -157,7 +157,7 @@ This gives Node.js, Python, and other runtimes time to close database connection
 ### Running Tests
 
 ```bash
-cargo test
+cargo ctest
 ```
 
 ### Building
