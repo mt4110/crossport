@@ -176,6 +176,15 @@ crossport scan --json | jq '.[] | select(.kind == "dev") | .port'
 - [ ] Watch モード (`crossport scan --watch`)
 - [ ] Kubernetes Pod 検出
 
+
+## プライバシーとセキュリティ
+
+**Crossport は完全にローカル環境で動作します。**
+
+- **データ収集なし**: PC内のコードや分析データを収集・保存・送信することは一切ありません。
+- **ローカル処理**: すべてのポートスキャンやプロセス管理は、標準的なシステムAPI (`lsof`, `netstat`, Docker API) を使用してローカルで完結しています。
+- **オープンソース**: コードは100%オープンソースです。ソースコードを確認することで、ツールが何を行っているか完全に検証可能です。
+
 ## ライセンス
 
 MIT License. 詳細は [LICENSE](./LICENSE) をご覧ください。

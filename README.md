@@ -197,6 +197,15 @@ cargo build --release
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
+
+## Privacy & Security
+
+**Crossport runs entirely on your local machine.**
+
+- **No Data Collection**: It does not collect, store, or transmit any analytical data or code from your computer.
+- **Local Operations**: All port scanning and process management happens locally using standard system APIs (`lsof`, `netstat`, Docker API).
+- **Open Source**: The code is 100% open source. You can verify exactly what it does by reviewing the source code.
+
 ## License
 
 MIT License. See [LICENSE](./LICENSE) for details.
