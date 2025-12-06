@@ -45,6 +45,14 @@
 
           shellHook = ''
             echo "🚀 crossport dev shell (Rust 1.91.0)"
+            echo "💡 Tips: "
+            echo "   - 'cx <args>': alias for 'cargo run -- <args>'"
+            echo "   - 'build': alias for 'cargo build --release'"
+            echo "   - 'test': alias for 'cargo test'"
+
+            alias cx="cargo run --"
+            alias build="cargo build --release"
+            alias test="cargo test"
           '';
         };
       });

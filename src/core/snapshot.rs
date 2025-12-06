@@ -76,8 +76,30 @@ fn enrich_process_info(
     // Try to find project root (git)
     let project_root = find_git_root(&cwd);
 
-    // Check Docker map
     let mut container_name = None;
+
+    // Check for Kubernetes
+    if cmd == "kubectl" || cmd == "k3s" {
+        // Try to parse full command line arguments to find target
+        if let Some(args) = process.cmd().get(0..) {
+            // Try to find "port-forward" and the service/pod name
+            // args usually: ["kubectl", "port-forward", "svc/my-api", "8080:80"]
+            if args.iter().any(|arg| arg == "port-forward") {
+                kind = ProcessKind::Kubernetes;
+                // Heuristic: Find the arg that doesn't start with "-" and isn't "port-forward" or "kubectl"
+                if let Some(target) = args
+                    .iter()
+                    .skip_while(|&a| a != "port-forward")
+                    .skip(1)
+                    .find(|&a| !a.starts_with('-') && !a.contains(':'))
+                {
+                    container_name = Some(target.clone());
+                }
+            }
+        }
+    }
+
+    // Check Docker map
     if let Some(name) = docker_map.get(&port) {
         container_name = Some(name.clone());
         kind = ProcessKind::Docker;

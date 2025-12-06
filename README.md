@@ -7,6 +7,9 @@
 <p align="center">
   <img src="./assets/demo.gif" width="650" alt="Crossport demo" />
 </p>
+
+[🇯🇵 日本語](./README_ja.md)
+
 ## Why Crossport?
 
 Unlike generic process killers, `crossport` is built specifically for developers:
@@ -35,8 +38,18 @@ cargo install --path .
 ### Using Nix
 
 ```bash
-nix develop  # Enter dev shell
-cargo build --release
+nix develop
+# 💡 Inside the shell, you can use these shortcuts:
+#   cx     -> cargo run --
+#   build  -> cargo build --release
+#   test   -> cargo test
+```
+
+Or install it globally (like `go install`):
+
+```bash
+nix profile install .
+crossport --version
 ```
 
 ## Quick Start
@@ -174,9 +187,11 @@ cargo build --release
 - [x] Configuration Files
 - [x] JSON Output
 - [x] CI/CD with GitHub Actions
+- [ ] **v0.3**: detailed Inspector (Bind IP, internal ports, etc.)
+- [ ] **v0.3**: Windows native support (currently uses `netstat`)
 - [ ] Watch Mode (`crossport scan --watch`)
-- [ ] Windows native support (currently uses `netstat`)
 - [ ] Kubernetes pod detection
+- [x] Kubernetes port-forward detection
 
 ## Contributing
 
