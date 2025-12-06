@@ -2,7 +2,7 @@
 
 **Stop guessing "What's using port 8080?".** Crossport visualizes your local development ports with full context (Git/Docker/K8s) and lets you manage them safely.
 
-[![CI](https://github.com/your-username/crossport/workflows/CI/badge.svg)](https://github.com/your-username/crossport/actions)
+[![CI](https://github.com/mt4110/crossport/workflows/CI/badge.svg)](https://github.com/mt4110/crossport/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 <p align="center">
   <img src="./assets/demo.gif" width="650" alt="Crossport demo" />
@@ -25,12 +25,12 @@ Unlike generic process killers, `crossport` is built specifically for developers
 
 ### From GitHub Releases (Recommended)
 
-Download the latest binary for your OS from the [Releases](https://github.com/your-username/crossport/releases) page.
+Download the latest binary for your OS from the [Releases](https://github.com/mt4110/crossport/releases) page.
 
 ### From Source
 
 ```bash
-git clone https://github.com/your-username/crossport.git
+git clone https://github.com/mt4110/crossport.git
 cd crossport
 cargo install --path .
 ```

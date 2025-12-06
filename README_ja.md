@@ -4,7 +4,7 @@
 
 [🇺🇸 English](./README.md)
 
-[![CI](https://github.com/your-username/crossport/workflows/CI/badge.svg)](https://github.com/your-username/crossport/actions)
+[![CI](https://github.com/mt4110/crossport/workflows/CI/badge.svg)](https://github.com/mt4110/crossport/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
 <p align="center">
@@ -26,12 +26,12 @@
 
 ### GitHub Releases (推奨)
 
-[Releases](https://github.com/your-username/crossport/releases) ページからお使いのOS用のバイナリをダウンロードしてください。
+[Releases](https://github.com/mt4110/crossport/releases) ページからお使いのOS用のバイナリをダウンロードしてください。
 
 ### ソースからビルド
 
 ```bash
-git clone https://github.com/your-username/crossport.git
+git clone https://github.com/mt4110/crossport.git
 cd crossport
 cargo install --path .
 ```
