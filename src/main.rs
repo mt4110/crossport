@@ -76,7 +76,10 @@ fn main() -> Result<()> {
                 return Ok(());
             }
 
+            #[cfg(unix)]
             let _current_uid = nix::unistd::getuid();
+            #[cfg(not(unix))]
+            let _current_uid = 0; // Dummy value for Windows
 
             let final_interactive = interactive.or(config.kill.confirm).unwrap_or(true);
             let final_signal = signal.as_deref().or(config.kill.default_signal.as_deref());
