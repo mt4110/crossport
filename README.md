@@ -1,8 +1,8 @@
 # Crossport
 
-**The Developer-First Port Manager** – Cross-platform CLI for managing local development ports (macOS, Linux, Windows)
+**Stop guessing "What's using port 8080?".** Crossport visualizes your local development ports with full context (Git/Docker/K8s) and lets you manage them safely.
 
-[![CI](https://github.com/your-username/crossport/workflows/CI/badge.svg)](https://github.com/your-username/crossport/actions)
+[![CI](https://github.com/mt4110/crossport/workflows/CI/badge.svg)](https://github.com/mt4110/crossport/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 <p align="center">
   <img src="./assets/demo.gif" width="650" alt="Crossport demo" />
@@ -25,12 +25,12 @@ Unlike generic process killers, `crossport` is built specifically for developers
 
 ### From GitHub Releases (Recommended)
 
-Download the latest binary for your OS from the [Releases](https://github.com/your-username/crossport/releases) page.
+Download the latest binary for your OS from the [Releases](https://github.com/mt4110/crossport/releases) page.
 
 ### From Source
 
 ```bash
-git clone https://github.com/your-username/crossport.git
+git clone https://github.com/mt4110/crossport.git
 cd crossport
 cargo install --path .
 ```
@@ -196,6 +196,15 @@ cargo build --release
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+
+## Privacy & Security
+
+**Crossport runs entirely on your local machine.**
+
+- **No Data Collection**: It does not collect, store, or transmit any analytical data or code from your computer.
+- **Local Operations**: All port scanning and process management happens locally using standard system APIs (`lsof`, `netstat`, Docker API).
+- **Open Source**: The code is 100% open source. You can verify exactly what it does by reviewing the source code.
 
 ## License
 

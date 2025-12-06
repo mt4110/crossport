@@ -1,10 +1,10 @@
 # Crossport
 
-**開発者のためのポートマネージャー** – ローカル開発環境のポートを管理するクロスプラットフォームCLI (macOS, Linux, Windows)
+**「8080番、誰が使ってる？」をもう推測しない。** Git/Docker/K8sのコンテキスト付きでポートを可視化・管理できる次世代のポートプロセス管理ツール。
 
 [🇺🇸 English](./README.md)
 
-[![CI](https://github.com/your-username/crossport/workflows/CI/badge.svg)](https://github.com/your-username/crossport/actions)
+[![CI](https://github.com/mt4110/crossport/workflows/CI/badge.svg)](https://github.com/mt4110/crossport/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
 <p align="center">
@@ -26,12 +26,12 @@
 
 ### GitHub Releases (推奨)
 
-[Releases](https://github.com/your-username/crossport/releases) ページからお使いのOS用のバイナリをダウンロードしてください。
+[Releases](https://github.com/mt4110/crossport/releases) ページからお使いのOS用のバイナリをダウンロードしてください。
 
 ### ソースからビルド
 
 ```bash
-git clone https://github.com/your-username/crossport.git
+git clone https://github.com/mt4110/crossport.git
 cd crossport
 cargo install --path .
 ```
@@ -175,6 +175,15 @@ crossport scan --json | jq '.[] | select(.kind == "dev") | .port'
 - [ ] **v0.3**: Windows ネイティブサポート（現在は `netstat` 使用）
 - [ ] Watch モード (`crossport scan --watch`)
 - [ ] Kubernetes Pod 検出
+
+
+## プライバシーとセキュリティ
+
+**Crossport は完全にローカル環境で動作します。**
+
+- **データ収集なし**: PC内のコードや分析データを収集・保存・送信することは一切ありません。
+- **ローカル処理**: すべてのポートスキャンやプロセス管理は、標準的なシステムAPI (`lsof`, `netstat`, Docker API) を使用してローカルで完結しています。
+- **オープンソース**: コードは100%オープンソースです。ソースコードを確認することで、ツールが何を行っているか完全に検証可能です。
 
 ## ライセンス
 
