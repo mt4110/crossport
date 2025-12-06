@@ -1,6 +1,6 @@
 # Crossport
 
-**The Developer-First Port Manager** – Cross-platform CLI for managing local development ports (macOS, Linux, Windows)
+**Stop guessing "What's using port 8080?".** Crossport visualizes your local development ports with full context (Git/Docker/K8s) and lets you manage them safely.
 
 [![CI](https://github.com/your-username/crossport/workflows/CI/badge.svg)](https://github.com/your-username/crossport/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
