@@ -43,7 +43,7 @@ nix develop
 # 💡 シェル内でのショートカット:
 #   cx     -> cargo run --
 #   build  -> cargo build --release
-#   test   -> cargo test
+#   ctest  -> cargo test
 ```
 
 または、グローバルにインストールする場合（`go install` のように）：
