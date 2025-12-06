@@ -20,6 +20,7 @@ pub enum ProcessKind {
     Brew,
     Dev,
     Docker,
+    Kubernetes,
     Other,
 }
 
@@ -30,6 +31,7 @@ impl ProcessKind {
             ProcessKind::Brew => "brew",
             ProcessKind::Dev => "dev",
             ProcessKind::Docker => "docker",
+            ProcessKind::Kubernetes => "k8s",
             ProcessKind::Other => "other",
         }
     }
