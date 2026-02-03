@@ -2,69 +2,42 @@ use crate::tui::app::{App, InputMode};
 use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, Clear, Paragraph, Row, Table},
+    widgets::{Block, Borders, Clear, Paragraph},
     Frame,
 };
 
 pub fn ui(f: &mut Frame, app: &mut App) {
     let rects = Layout::default()
-        .constraints([Constraint::Percentage(100)].as_ref())
+        .constraints([Constraint::Min(0), Constraint::Length(3)].as_ref())
         .margin(1)
         .split(f.size());
 
-    let selected_style = Style::default().add_modifier(Modifier::REVERSED);
-    let normal_style = Style::default().bg(Color::Blue);
-    let header_cells = ["PORT", "PID", "USER", "CMD", "KIND", "PROJ"]
-        .iter()
-        .map(|h| ratatui::widgets::Cell::from(*h).style(Style::default().fg(Color::Red)));
-    let header = Row::new(header_cells)
-        .style(normal_style)
-        .height(1)
-        .bottom_margin(0);
+    // Clear screen/background?
+    // Actually crossterm handles that with AlternateScreen usually.
 
-    let rows = app.processes.iter().map(|item| {
-        let proj = if let Some(container) = &item.container_name {
-            container.clone()
-        } else {
-            item.project_root
-                .as_ref()
-                .and_then(|p| p.file_name())
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_default()
-        };
+    // Table
+    app.process_table.render(f, rects[0], &app.processes);
 
-        let cells = vec![
-            item.port.to_string(),
-            item.pid.to_string(),
-            item.user.clone(),
-            item.cmd.clone(),
-            item.kind.as_str().to_string(),
-            proj.to_string(),
-        ];
-        Row::new(cells).height(1).bottom_margin(0)
-    });
+    // Filter / Help Footer
+    let filter_text = if let InputMode::EditingFilter = app.input_mode {
+        format!("Filter: {}_", app.filter_query)
+    } else if !app.filter_query.is_empty() {
+        format!("Filter: {} (Esc to clear)", app.filter_query)
+    } else {
+        "Keybindings: </> Filter | <s> Sort | <S> Rev Sort | <x> Kill | <q> Quit".to_string()
+    };
 
-    let t = Table::new(
-        rows,
-        [
-            Constraint::Length(6),
-            Constraint::Length(8),
-            Constraint::Length(10),
-            Constraint::Length(20),
-            Constraint::Length(10),
-            Constraint::Min(10),
-        ],
-    )
-    .header(header)
-    .block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title("Crossport TUI (q: Quit, x: Kill)"),
-    )
-    .highlight_style(selected_style)
-    .highlight_symbol(">> ");
+    let footer_style = if let InputMode::EditingFilter = app.input_mode {
+        Style::default().fg(Color::Yellow)
+    } else {
+        Style::default().fg(Color::Gray)
+    };
 
-    f.render_stateful_widget(t, rects[0], &mut app.state);
+    let footer = Paragraph::new(filter_text)
+        .style(footer_style)
+        .block(Block::default().borders(Borders::ALL));
+
+    f.render_widget(footer, rects[1]);
 
     if let InputMode::ConfirmKill(pid) = app.input_mode {
         let block = Block::default().title("Confirm Kill").borders(Borders::ALL);
@@ -77,6 +50,29 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         .style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD));
         f.render_widget(Clear, area); // Clear background
         f.render_widget(text, area);
+    }
+
+    if let InputMode::ConfirmRestart(container) = &app.input_mode {
+        let block = Block::default()
+            .title("Confirm Restart")
+            .borders(Borders::ALL);
+        let area = centered_rect(60, 20, f.size());
+        let text = Paragraph::new(format!(
+            "Are you sure you want to restart container '{}'? (y/n)",
+            container
+        ))
+        .block(block)
+        .style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        );
+        f.render_widget(Clear, area); // Clear background
+        f.render_widget(text, area);
+    }
+
+    if let InputMode::Inspecting(proc) = &app.input_mode {
+        crate::tui::components::inspector::Inspector::render(f, f.size(), proc);
     }
 }
 

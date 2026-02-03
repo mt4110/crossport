@@ -35,6 +35,10 @@ pub enum Commands {
         /// Output as JSON
         #[arg(long)]
         json: bool,
+
+        /// Watch mode (refresh every second)
+        #[arg(long, short)]
+        watch: bool,
     },
 
     /// Suggest a free port

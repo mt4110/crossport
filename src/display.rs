@@ -11,6 +11,11 @@ pub fn print_process_info(info: &ProcessInfo) {
     println!("  {:<9}: {}", "user", info.user);
     println!("  {:<9}: {}", "cmd", info.cmd);
     println!("  {:<9}: {}", "cwd", info.cwd.display());
+    println!(
+        "  {:<9}: {}",
+        "bind",
+        info.local_addr.as_deref().unwrap_or("-")
+    );
 
     if let Some(root) = &info.project_root {
         println!("  {:<9}: {} (git)", "project", root.display());
@@ -30,8 +35,8 @@ pub fn print_scan_result(infos: &[ProcessInfo]) {
     }
 
     println!(
-        "{:<6} {:<8} {:<8} {:<8} {:<8} PROJ",
-        "PORT", "PID", "USER", "CMD", "KIND"
+        "{:<6} {:<8} {:<8} {:<8} {:<8} {:<15} PROJ",
+        "PORT", "PID", "USER", "CMD", "KIND", "BIND"
     );
     for info in infos {
         let proj = if let Some(container) = &info.container_name {
@@ -44,13 +49,16 @@ pub fn print_scan_result(infos: &[ProcessInfo]) {
                 .unwrap_or_default()
         };
 
+        let bind = info.local_addr.clone().unwrap_or_default();
+
         println!(
-            "{:<6} {:<8} {:<8} {:<8} {:<8} {}",
+            "{:<6} {:<8} {:<8} {:<8} {:<8} {:<15} {}",
             info.port,
             info.pid,
             truncate(&info.user, 8),
             truncate(&info.cmd, 8),
             info.kind.as_str(),
+            truncate(&bind, 15),
             proj
         );
     }

@@ -23,8 +23,8 @@ pub fn scan_ports(snapshot: &SystemSnapshot, from: u16, to: u16) -> Result<Vec<P
         }
     }
 
-    // Sort by port
-    final_infos.sort_by_key(|i| i.port);
+    // Sort by port, then by pid for determinism
+    final_infos.sort_by(|a, b| a.port.cmp(&b.port).then_with(|| a.pid.cmp(&b.pid)));
     Ok(final_infos)
 }
 
@@ -118,6 +118,22 @@ pub fn kill_process(
             let stderr = String::from_utf8_lossy(&output.stderr);
             anyhow::bail!("Failed to kill process {}: {}", pid, stderr);
         }
+    }
+
+    Ok(())
+}
+
+pub fn restart_container(container_name: &str) -> Result<()> {
+    // docker restart <name>
+    let output = std::process::Command::new("docker")
+        .arg("restart")
+        .arg(container_name)
+        .output()
+        .context("Failed to execute docker restart")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("Docker restart failed: {}", stderr);
     }
 
     Ok(())

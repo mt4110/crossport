@@ -187,11 +187,16 @@ cargo build --release
 - [x] Configuration Files
 - [x] JSON Output
 - [x] CI/CD with GitHub Actions
-- [ ] **v0.3**: detailed Inspector (Bind IP, internal ports, etc.)
-- [ ] **v0.3**: Windows native support (currently uses `netstat`)
-- [ ] Watch Mode (`crossport scan --watch`)
-- [ ] Kubernetes pod detection
+- [x] **v0.3**: Detailed Inspector (Bind IP, internal ports, etc.)
+- [x] **v0.3**: Windows support improvements
+- [x] Watch Mode (`crossport scan --watch`)
+- [x] Kubernetes pod detection
 - [x] Kubernetes port-forward detection
+- [ ] **v0.4**: Advanced TUI
+  - [ ] Sort & Filter processes
+  - [ ] Detailed Inspector View (Modal)
+  - [ ] Kill History & Logs
+  - [ ] Docker/K8s specific actions
 
 ## Contributing
 

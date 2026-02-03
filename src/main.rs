@@ -2,6 +2,7 @@ mod cli;
 mod config;
 mod core;
 mod display;
+mod exit;
 mod ops;
 mod tui;
 mod utils;
@@ -12,7 +13,18 @@ use cli::{Cli, Commands};
 use core::SystemSnapshot;
 use std::io::{self, Write};
 
-fn main() -> Result<()> {
+use exit::ExitCode;
+
+fn main() {
+    if let Err(e) = run() {
+        eprintln!("Error: {}", e);
+        // Map error to code
+        let code = exit::map_err_to_code(&e);
+        code.exit();
+    }
+}
+
+fn run() -> Result<()> {
     let cli = Cli::parse();
     let config = config::load_config(cli.config.as_ref()).unwrap_or_default();
 
@@ -26,7 +38,7 @@ fn main() -> Result<()> {
         Some(Commands::Ui) => {
             tui::run_tui()?;
         }
-        Some(Commands::Scan { from, to, json }) => {
+        Some(Commands::Scan { from, to, json, watch }) => {
             let (cfg_from, cfg_to) = if let Some(range) = &config.scan.default_range {
                 let parts: Vec<&str> = range.split('-').collect();
                 if parts.len() == 2 {
@@ -41,13 +53,41 @@ fn main() -> Result<()> {
             let final_from = from.or(cfg_from).unwrap_or(3000);
             let final_to = to.or(cfg_to).unwrap_or(9999);
 
-            let results = ops::scan_ports(&snapshot, final_from, final_to)?;
+            if final_from > final_to {
+                anyhow::bail!("Invalid port range: from ({}) > to ({})", final_from, final_to);
+            }
 
-            if *json {
-                let json_output = serde_json::to_string_pretty(&results)?;
-                println!("{}", json_output);
+            if *watch {
+                loop {
+                    // Clear screen unless JSON
+                    if !*json {
+                        print!("\x1B[2J\x1B[1;1H"); // ANSI clear screen
+                        io::stdout().flush()?;
+                    }
+
+                    // Re-capture
+                    let snapshot = SystemSnapshot::capture()?;
+                    let results = ops::scan_ports(&snapshot, final_from, final_to)?;
+
+                    if *json {
+                        let json_output = serde_json::to_string_pretty(&results)?;
+                        println!("{}", json_output);
+                    } else {
+                        display::print_scan_result(&results);
+                        println!("\n(Ctrl+C to exit)");
+                    }
+
+                    std::thread::sleep(std::time::Duration::from_secs(1));
+                }
             } else {
-                display::print_scan_result(&results);
+                let results = ops::scan_ports(&snapshot, final_from, final_to)?;
+
+                if *json {
+                    let json_output = serde_json::to_string_pretty(&results)?;
+                    println!("{}", json_output);
+                } else {
+                    display::print_scan_result(&results);
+                }
             }
         }
         Some(Commands::Suggest {

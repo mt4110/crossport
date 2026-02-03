@@ -12,9 +12,12 @@ pub struct ProcessInfo {
     pub container_name: Option<String>,
     pub kind: ProcessKind,
     pub port: u16,
+    pub local_addr: Option<String>,
+    pub args: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ProcessKind {
     System,
     Brew,

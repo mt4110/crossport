@@ -1,4 +1,5 @@
 pub mod app;
+pub mod components;
 pub mod ui;
 
 use crate::tui::app::InputMode;
@@ -51,18 +52,43 @@ fn run_app<B: ratatui::backend::Backend>(
                         KeyCode::Char('j') | KeyCode::Down => app.next(),
                         KeyCode::Char('k') | KeyCode::Up => app.previous(),
                         KeyCode::Char('x') => app.kill_selected(),
+                        KeyCode::Char('s') => app.next_sort_col(),
+                        KeyCode::Char('S') => app.toggle_sort_order(),
+                        KeyCode::Char('/') => app.enter_filter_mode(),
+                        KeyCode::Enter => app.inspect_selected(),
+                        KeyCode::Char('r') => app.restart_selected(),
+                        _ => {}
+                    },
+                    InputMode::EditingFilter => match key.code {
+                        KeyCode::Esc => {
+                            app.clear_filter();
+                            app.exit_filter_mode();
+                        }
+                        KeyCode::Enter => app.exit_filter_mode(),
+                        KeyCode::Char(c) => app.append_filter(c),
+                        KeyCode::Backspace => app.pop_filter(),
+                        _ => {}
+                    },
+                    InputMode::Inspecting(_) => match key.code {
+                        KeyCode::Esc | KeyCode::Char('q') => app.exit_inspect_mode(),
                         _ => {}
                     },
                     InputMode::ConfirmKill(_) => match key.code {
                         KeyCode::Char('y') => {
                             if let Err(_e) = app.confirm_kill() {
                                 // TODO: Show error in UI? For now just print to stderr or ignore?
-                                // Since we are in raw mode, printing is bad.
-                                // Ideally we should have an error state in App.
-                                // For MVP, let's just ignore or maybe flash?
                             }
                         }
                         KeyCode::Char('n') | KeyCode::Esc => app.cancel_kill(),
+                        _ => {}
+                    },
+                    InputMode::ConfirmRestart(_) => match key.code {
+                        KeyCode::Char('y') => {
+                            if let Err(_e) = app.confirm_restart() {
+                                // TODO
+                            }
+                        }
+                        KeyCode::Char('n') | KeyCode::Esc => app.cancel_restart(),
                         _ => {}
                     },
                 }
