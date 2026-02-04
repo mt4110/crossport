@@ -44,10 +44,12 @@ fn test_json_serialization() {
         container_name: None,
         kind: ProcessKind::Dev,
         port: 3000,
+        local_addr: None,
+        args: vec![],
     };
 
     let json = serde_json::to_string(&info).unwrap();
     assert!(json.contains("\"pid\":12345"));
     assert!(json.contains("\"port\":3000"));
-    assert!(json.contains("\"kind\":\"Dev\""));
+    assert!(json.contains("\"kind\":\"dev\""));
 }

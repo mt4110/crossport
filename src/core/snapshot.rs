@@ -24,8 +24,10 @@ impl SystemSnapshot {
         let mut processes_by_port = HashMap::new();
 
         // 3. Enrich
-        for (pid_val, port) in ports_pids {
-            if let Some(info) = enrich_process_info(&sys, &users, pid_val, port, &docker_map) {
+        for (pid_val, port, local_addr) in ports_pids {
+            if let Some(info) =
+                enrich_process_info(&sys, &users, pid_val, port, local_addr, &docker_map)
+            {
                 processes_by_port
                     .entry(port)
                     .or_insert_with(Vec::new)
@@ -49,6 +51,7 @@ fn enrich_process_info(
     users: &Users,
     pid_val: u32,
     port: u16,
+    local_addr: String,
     docker_map: &HashMap<u16, String>,
 ) -> Option<ProcessInfo> {
     let pid = Pid::from(pid_val as usize);
@@ -102,7 +105,17 @@ fn enrich_process_info(
     // Check Docker map
     if let Some(name) = docker_map.get(&port) {
         container_name = Some(name.clone());
-        kind = ProcessKind::Docker;
+        if name.starts_with("k8s_") {
+            kind = ProcessKind::Kubernetes;
+            // Optional: Extract cleaner name?
+            // k8s_container_pod_namespace...
+            // For now, let's keep the full name or maybe just the pod name?
+            // User might want to know it's a pod.
+            // Let's rely on the full name for matching project awareness if possible,
+            // but for "PROJ" column, maybe we want Pod Name.
+        } else {
+            kind = ProcessKind::Docker;
+        }
     }
 
     Some(ProcessInfo {
@@ -115,6 +128,12 @@ fn enrich_process_info(
         container_name,
         kind,
         port,
+        local_addr: if local_addr.is_empty() {
+            None
+        } else {
+            Some(local_addr)
+        },
+        args: process.cmd().to_vec(),
     })
 }
 
@@ -162,7 +181,7 @@ fn get_docker_containers() -> Result<HashMap<u16, String>> {
     }
 }
 
-fn get_all_listening_ports() -> Result<Vec<(u32, u16)>> {
+fn get_all_listening_ports() -> Result<Vec<(u32, u16, String)>> {
     if cfg!(target_os = "windows") {
         scan_ports_windows()
     } else {
@@ -170,7 +189,7 @@ fn get_all_listening_ports() -> Result<Vec<(u32, u16)>> {
     }
 }
 
-fn scan_ports_unix() -> Result<Vec<(u32, u16)>> {
+fn scan_ports_unix() -> Result<Vec<(u32, u16, String)>> {
     let output = Command::new("lsof")
         .arg("-iTCP")
         .arg("-sTCP:LISTEN")
@@ -191,9 +210,17 @@ fn scan_ports_unix() -> Result<Vec<(u32, u16)>> {
         } else if let Some(stripped) = line.strip_prefix('n') {
             if let Some(pid) = current_pid {
                 // Example: n*:12345
-                let port_part = stripped.split(':').next_back().unwrap_or("");
-                if let Ok(port) = port_part.parse::<u16>() {
-                    results.push((pid, port));
+                // n127.0.0.1:9277
+                let (addr, port_str) = if let Some(idx) = stripped.rfind("]:") {
+                    (&stripped[..idx + 1], &stripped[idx + 2..])
+                } else if let Some(pair) = stripped.rsplit_once(':') {
+                    pair
+                } else {
+                    continue;
+                };
+
+                if let Ok(port) = port_str.parse::<u16>() {
+                    results.push((pid, port, addr.to_string()));
                 }
             }
         }
@@ -201,7 +228,7 @@ fn scan_ports_unix() -> Result<Vec<(u32, u16)>> {
     Ok(results)
 }
 
-fn scan_ports_windows() -> Result<Vec<(u32, u16)>> {
+fn scan_ports_windows() -> Result<Vec<(u32, u16, String)>> {
     let output = Command::new("netstat")
         .arg("-ano")
         .output()
@@ -219,14 +246,11 @@ fn scan_ports_windows() -> Result<Vec<(u32, u16)>> {
                 let local_addr = parts[1];
                 let pid_str = parts[parts.len() - 1];
 
-                if let Ok(port) = local_addr
-                    .split(':')
-                    .next_back()
-                    .unwrap_or("")
-                    .parse::<u16>()
-                {
-                    if let Ok(pid) = pid_str.parse::<u32>() {
-                        results.push((pid, port));
+                if let Some((addr, port_str)) = local_addr.rsplit_once(':') {
+                    if let Ok(port) = port_str.parse::<u16>() {
+                        if let Ok(pid) = pid_str.parse::<u32>() {
+                            results.push((pid, port, addr.to_string()));
+                        }
                     }
                 }
             }

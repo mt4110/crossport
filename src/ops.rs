@@ -23,8 +23,8 @@ pub fn scan_ports(snapshot: &SystemSnapshot, from: u16, to: u16) -> Result<Vec<P
         }
     }
 
-    // Sort by port
-    final_infos.sort_by_key(|i| i.port);
+    // Sort by port, then by pid for determinism
+    final_infos.sort_by(|a, b| a.port.cmp(&b.port).then_with(|| a.pid.cmp(&b.pid)));
     Ok(final_infos)
 }
 
@@ -121,4 +121,51 @@ pub fn kill_process(
     }
 
     Ok(())
+}
+
+pub fn restart_container(container_name: &str) -> Result<()> {
+    // First, try Docker: `docker restart <name>`
+    let docker_result = std::process::Command::new("docker")
+        .arg("restart")
+        .arg(container_name)
+        .output()
+        .context("Failed to execute docker restart")?;
+
+    // If Docker succeeded, we're done (preserve existing behavior for Docker containers).
+    if docker_result.status.success() {
+        return Ok(());
+    }
+
+    // If Docker failed, capture the error so we can decide whether to attempt a Kubernetes restart.
+    let docker_stderr = String::from_utf8_lossy(&docker_result.stderr);
+
+    // Attempt a Kubernetes pod "restart" (delete so it can be recreated) when it looks like:
+    // - the Docker container does not exist, or
+    // - Docker is not available / reachable.
+    let try_kubectl = docker_stderr.contains("No such container")
+        || docker_stderr.contains("Cannot connect to the Docker daemon")
+        || docker_stderr.contains("not found");
+
+    if try_kubectl {
+        let kubectl_result = std::process::Command::new("kubectl")
+            .arg("delete")
+            .arg("pod")
+            .arg(container_name)
+            .output()
+            .context("Failed to execute kubectl to restart Kubernetes pod")?;
+
+        if kubectl_result.status.success() {
+            return Ok(());
+        }
+
+        let kubectl_stderr = String::from_utf8_lossy(&kubectl_result.stderr);
+        anyhow::bail!(
+            "Failed to restart workload. Docker error: {}. Kubernetes error: {}",
+            docker_stderr,
+            kubectl_stderr
+        );
+    }
+
+    // If we decided not to try Kubernetes, preserve the original Docker error behavior.
+    anyhow::bail!("Docker restart failed: {}", docker_stderr);
 }
