@@ -76,4 +76,3 @@ pub fn ui(f: &mut Frame, app: &mut App) {
     }
 }
 
-}
