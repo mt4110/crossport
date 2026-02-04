@@ -24,7 +24,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
     } else if !app.filter_query.is_empty() {
         format!("Filter: {} (Esc to clear)", app.filter_query)
     } else {
-        "Keybindings: </> Filter | <s> Sort | <S> Rev Sort | <x> Kill | <q> Quit".to_string()
+        "Keybindings: / Filter | <s> Sort | <S> Rev Sort | <x> Kill | <q> Quit".to_string()
     };
 
     let footer_style = if let InputMode::EditingFilter = app.input_mode {
@@ -41,7 +41,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
 
     if let InputMode::ConfirmKill(pid) = app.input_mode {
         let block = Block::default().title("Confirm Kill").borders(Borders::ALL);
-        let area = centered_rect(60, 20, f.size());
+        let area = crate::tui::utils::centered_rect(60, 20, f.size());
         let text = Paragraph::new(format!(
             "Are you sure you want to kill process {}? (y/n)",
             pid
@@ -56,7 +56,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         let block = Block::default()
             .title("Confirm Restart")
             .borders(Borders::ALL);
-        let area = centered_rect(60, 20, f.size());
+        let area = crate::tui::utils::centered_rect(60, 20, f.size());
         let text = Paragraph::new(format!(
             "Are you sure you want to restart container '{}'? (y/n)",
             container
@@ -76,28 +76,4 @@ pub fn ui(f: &mut Frame, app: &mut App) {
     }
 }
 
-fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
-    let popup_layout = Layout::default()
-        .direction(ratatui::layout::Direction::Vertical)
-        .constraints(
-            [
-                Constraint::Percentage((100 - percent_y) / 2),
-                Constraint::Percentage(percent_y),
-                Constraint::Percentage((100 - percent_y) / 2),
-            ]
-            .as_ref(),
-        )
-        .split(r);
-
-    Layout::default()
-        .direction(ratatui::layout::Direction::Horizontal)
-        .constraints(
-            [
-                Constraint::Percentage((100 - percent_x) / 2),
-                Constraint::Percentage(percent_x),
-                Constraint::Percentage((100 - percent_x) / 2),
-            ]
-            .as_ref(),
-        )
-        .split(popup_layout[1])[1]
 }

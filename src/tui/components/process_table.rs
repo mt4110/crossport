@@ -62,7 +62,13 @@ impl ProcessTable {
                     let b_proj = b.container_name.as_deref().unwrap_or("");
                     // Fallback to project root if container name empty?
                     // Simplified for sort:
-                    a_proj.cmp(b_proj)
+                    if a_proj.is_empty() && b_proj.is_empty() {
+                        let a_root = a.project_root.as_deref().unwrap_or("");
+                        let b_root = b.project_root.as_deref().unwrap_or("");
+                        a_root.cmp(b_root)
+                    } else {
+                        a_proj.cmp(b_proj)
+                    }
                 }
             };
             match self.sort_order {

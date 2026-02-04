@@ -193,10 +193,10 @@ cargo build --release
 - [x] Kubernetes pod detection
 - [x] Kubernetes port-forward detection
 - [ ] **v0.4**: Advanced TUI
-  - [ ] Sort & Filter processes
-  - [ ] Detailed Inspector View (Modal)
+  - [x] Sort & Filter processes
+  - [x] Detailed Inspector View (Modal)
   - [ ] Kill History & Logs
-  - [ ] Docker/K8s specific actions
+  - [x] Docker/K8s specific actions
 
 ## Contributing
 

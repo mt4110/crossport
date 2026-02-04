@@ -21,6 +21,7 @@
     "ratatui",
     "rects",
     "rustup",
+    "serde",
     "stdenv",
     "sysinfo",
     "takemura",

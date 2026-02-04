@@ -1,6 +1,7 @@
 pub mod app;
 pub mod components;
 pub mod ui;
+pub mod utils;
 
 use crate::tui::app::InputMode;
 use anyhow::Result;
@@ -85,7 +86,7 @@ fn run_app<B: ratatui::backend::Backend>(
                     InputMode::ConfirmRestart(_) => match key.code {
                         KeyCode::Char('y') => {
                             if let Err(_e) = app.confirm_restart() {
-                                // TODO
+                                // TODO: Show error in UI? For now just print to stderr or ignore?
                             }
                         }
                         KeyCode::Char('n') | KeyCode::Esc => app.cancel_restart(),

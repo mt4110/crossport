@@ -13,8 +13,6 @@ use cli::{Cli, Commands};
 use core::SystemSnapshot;
 use std::io::{self, Write};
 
-
-
 fn main() {
     if let Err(e) = run() {
         eprintln!("Error: {}", e);
@@ -66,25 +64,21 @@ fn run() -> Result<()> {
                 );
             }
 
+            if *watch && *json {
+                anyhow::bail!("Cannot use --watch with --json. Use 'watch -n 1 crossport scan --json' or similar instead.");
+            }
+
             if *watch {
                 loop {
-                    // Clear screen unless JSON
-                    if !*json {
-                        print!("\x1B[2J\x1B[1;1H"); // ANSI clear screen
-                        io::stdout().flush()?;
-                    }
+                    print!("\x1B[2J\x1B[1;1H"); // ANSI clear screen
+                    io::stdout().flush()?;
 
                     // Re-capture
                     let snapshot = SystemSnapshot::capture()?;
                     let results = ops::scan_ports(&snapshot, final_from, final_to)?;
 
-                    if *json {
-                        let json_output = serde_json::to_string_pretty(&results)?;
-                        println!("{}", json_output);
-                    } else {
-                        display::print_scan_result(&results);
-                        println!("\n(Ctrl+C to exit)");
-                    }
+                    display::print_scan_result(&results);
+                    println!("\n(Ctrl+C to exit)");
 
                     std::thread::sleep(std::time::Duration::from_secs(1));
                 }

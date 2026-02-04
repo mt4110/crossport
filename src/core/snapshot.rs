@@ -128,7 +128,11 @@ fn enrich_process_info(
         container_name,
         kind,
         port,
-        local_addr: Some(local_addr),
+        local_addr: if local_addr.is_empty() {
+            None
+        } else {
+            Some(local_addr)
+        },
         args: process.cmd().to_vec(),
     })
 }
@@ -207,10 +211,16 @@ fn scan_ports_unix() -> Result<Vec<(u32, u16, String)>> {
             if let Some(pid) = current_pid {
                 // Example: n*:12345
                 // n127.0.0.1:9277
-                if let Some((addr, port_str)) = stripped.rsplit_once(':') {
-                    if let Ok(port) = port_str.parse::<u16>() {
-                        results.push((pid, port, addr.to_string()));
-                    }
+                let (addr, port_str) = if let Some(idx) = stripped.rfind("]:") {
+                    // IPv6 with brackets: [2001:db8::1]:8080
+                    // addr includes brackets: [2001:db8::1]
+                    (&stripped[..idx + 1], &stripped[idx + 2..])
+                } else {
+                    stripped.rsplit_once(':')?
+                };
+
+                if let Ok(port) = port_str.parse::<u16>() {
+                    results.push((pid, port, addr.to_string()));
                 }
             }
         }

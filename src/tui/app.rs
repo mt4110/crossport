@@ -170,7 +170,7 @@ impl App {
                     let matches = info.cmd.to_lowercase().contains(&query)
                         || info.user.to_lowercase().contains(&query)
                         || info.port.to_string().contains(&query)
-                        || info.kind.as_str().contains(&query)
+                        || info.kind.as_str().to_lowercase().contains(&query)
                         || info
                             .container_name
                             .as_ref()

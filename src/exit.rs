@@ -39,7 +39,10 @@ pub fn map_err_to_code(err: &anyhow::Error) -> ExitCode {
     if msg.contains("permission") || msg.contains("access") {
         return ExitCode::ScanError;
     }
-    if msg.contains("failed to kill") || msg.contains("failed to restart") {
+    if msg.contains("failed to kill")
+        || msg.contains("failed to restart")
+        || msg.contains("docker restart failed")
+    {
         return ExitCode::ProcessError;
     }
 
