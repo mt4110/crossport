@@ -51,5 +51,5 @@ fn test_json_serialization() {
     let json = serde_json::to_string(&info).unwrap();
     assert!(json.contains("\"pid\":12345"));
     assert!(json.contains("\"port\":3000"));
-    assert!(json.contains("\"kind\":\"Dev\""));
+    assert!(json.contains("\"kind\":\"dev\""));
 }
