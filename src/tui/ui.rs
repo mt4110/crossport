@@ -1,6 +1,6 @@
 use crate::tui::app::{App, InputMode};
 use ratatui::{
-    layout::{Constraint, Layout, Rect},
+    layout::{Constraint, Layout},
     style::{Color, Modifier, Style},
     widgets::{Block, Borders, Clear, Paragraph},
     Frame,

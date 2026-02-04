@@ -212,11 +212,11 @@ fn scan_ports_unix() -> Result<Vec<(u32, u16, String)>> {
                 // Example: n*:12345
                 // n127.0.0.1:9277
                 let (addr, port_str) = if let Some(idx) = stripped.rfind("]:") {
-                    // IPv6 with brackets: [2001:db8::1]:8080
-                    // addr includes brackets: [2001:db8::1]
                     (&stripped[..idx + 1], &stripped[idx + 2..])
+                } else if let Some(pair) = stripped.rsplit_once(':') {
+                    pair
                 } else {
-                    stripped.rsplit_once(':')?
+                    continue;
                 };
 
                 if let Ok(port) = port_str.parse::<u16>() {

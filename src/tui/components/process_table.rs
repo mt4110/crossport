@@ -63,8 +63,8 @@ impl ProcessTable {
                     // Fallback to project root if container name empty?
                     // Simplified for sort:
                     if a_proj.is_empty() && b_proj.is_empty() {
-                        let a_root = a.project_root.as_deref().unwrap_or("");
-                        let b_root = b.project_root.as_deref().unwrap_or("");
+                        let a_root = a.project_root.as_deref().unwrap_or_else(|| std::path::Path::new(""));
+                        let b_root = b.project_root.as_deref().unwrap_or_else(|| std::path::Path::new(""));
                         a_root.cmp(b_root)
                     } else {
                         a_proj.cmp(b_proj)
