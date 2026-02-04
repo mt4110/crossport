@@ -75,4 +75,3 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         crate::tui::components::inspector::Inspector::render(f, f.size(), proc);
     }
 }
-
