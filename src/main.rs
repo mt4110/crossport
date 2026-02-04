@@ -38,7 +38,12 @@ fn run() -> Result<()> {
         Some(Commands::Ui) => {
             tui::run_tui()?;
         }
-        Some(Commands::Scan { from, to, json, watch }) => {
+        Some(Commands::Scan {
+            from,
+            to,
+            json,
+            watch,
+        }) => {
             let (cfg_from, cfg_to) = if let Some(range) = &config.scan.default_range {
                 let parts: Vec<&str> = range.split('-').collect();
                 if parts.len() == 2 {
@@ -54,7 +59,11 @@ fn run() -> Result<()> {
             let final_to = to.or(cfg_to).unwrap_or(9999);
 
             if final_from > final_to {
-                anyhow::bail!("Invalid port range: from ({}) > to ({})", final_from, final_to);
+                anyhow::bail!(
+                    "Invalid port range: from ({}) > to ({})",
+                    final_from,
+                    final_to
+                );
             }
 
             if *watch {
