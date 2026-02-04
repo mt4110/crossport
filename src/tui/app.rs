@@ -31,7 +31,6 @@ impl App {
 
         // Initial sort
         let process_table = ProcessTable::new();
-        let mut processes = processes;
         process_table.sort(&mut processes);
 
         Ok(Self {

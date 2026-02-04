@@ -13,7 +13,7 @@ use cli::{Cli, Commands};
 use core::SystemSnapshot;
 use std::io::{self, Write};
 
-use exit::ExitCode;
+
 
 fn main() {
     if let Err(e) = run() {

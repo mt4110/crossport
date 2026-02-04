@@ -3,6 +3,7 @@ use std::process;
 /// Standard Exit Codes for crossport
 /// v0.5 Specification
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum ExitCode {
     /// Success (0)
     Success = 0,

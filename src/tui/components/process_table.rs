@@ -27,6 +27,12 @@ pub struct ProcessTable {
     pub sort_order: SortOrder,
 }
 
+impl Default for ProcessTable {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ProcessTable {
     pub fn new() -> Self {
         let mut state = TableState::default();

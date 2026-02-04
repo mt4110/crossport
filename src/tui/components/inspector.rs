@@ -48,7 +48,7 @@ impl Inspector {
             Span::styled("PID: ", Style::default().fg(Color::Cyan)),
             Span::raw(format!("{:<10}", process.pid)),
             Span::styled("User: ", Style::default().fg(Color::Cyan)),
-            Span::raw(format!("{}", process.user)),
+            Span::raw(process.user.to_string()),
         ]);
         f.render_widget(Paragraph::new(row1), layout[0]);
 
