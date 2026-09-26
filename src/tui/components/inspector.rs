@@ -1,10 +1,10 @@
 use crate::core::ProcessInfo;
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
-    Frame,
 };
 
 pub struct Inspector;
@@ -20,7 +20,7 @@ impl Inspector {
             .style(Style::default().bg(Color::Black));
 
         // Calculate centered area
-        let area = crate::tui::utils::centered_rect(60, 60, f.size());
+        let area = crate::tui::utils::centered_rect(60, 60, f.area());
 
         f.render_widget(Clear, area); // Clear background
 

@@ -1,16 +1,16 @@
 use crate::tui::app::{App, InputMode};
 use ratatui::{
+    Frame,
     layout::{Constraint, Layout},
     style::{Color, Modifier, Style},
     widgets::{Block, Borders, Clear, Paragraph},
-    Frame,
 };
 
 pub fn ui(f: &mut Frame, app: &mut App) {
     let rects = Layout::default()
         .constraints([Constraint::Min(0), Constraint::Length(3)].as_ref())
         .margin(1)
-        .split(f.size());
+        .split(f.area());
 
     // Clear screen/background?
     // Actually crossterm handles that with AlternateScreen usually.
@@ -41,7 +41,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
 
     if let InputMode::ConfirmKill(pid) = app.input_mode {
         let block = Block::default().title("Confirm Kill").borders(Borders::ALL);
-        let area = crate::tui::utils::centered_rect(60, 20, f.size());
+        let area = crate::tui::utils::centered_rect(60, 20, f.area());
         let text = Paragraph::new(format!(
             "Are you sure you want to kill process {}? (y/n)",
             pid
@@ -56,7 +56,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
         let block = Block::default()
             .title("Confirm Restart")
             .borders(Borders::ALL);
-        let area = crate::tui::utils::centered_rect(60, 20, f.size());
+        let area = crate::tui::utils::centered_rect(60, 20, f.area());
         let text = Paragraph::new(format!(
             "Are you sure you want to restart container '{}'? (y/n)",
             container
@@ -72,6 +72,6 @@ pub fn ui(f: &mut Frame, app: &mut App) {
     }
 
     if let InputMode::Inspecting(proc) = &app.input_mode {
-        crate::tui::components::inspector::Inspector::render(f, f.size(), proc);
+        crate::tui::components::inspector::Inspector::render(f, f.area(), proc);
     }
 }

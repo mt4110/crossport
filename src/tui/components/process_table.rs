@@ -1,9 +1,9 @@
 use crate::core::ProcessInfo;
 use ratatui::{
+    Frame,
     layout::{Constraint, Rect},
     style::{Color, Modifier, Style},
     widgets::{Block, Borders, Row, Table, TableState},
-    Frame,
 };
 
 pub enum SortColumn {
@@ -104,6 +104,11 @@ impl ProcessTable {
     }
 
     pub fn next(&mut self, items_len: usize) {
+        if items_len == 0 {
+            self.state.select(None);
+            return;
+        }
+
         let i = match self.state.selected() {
             Some(i) => {
                 if i >= items_len.saturating_sub(1) {
@@ -118,6 +123,11 @@ impl ProcessTable {
     }
 
     pub fn previous(&mut self, items_len: usize) {
+        if items_len == 0 {
+            self.state.select(None);
+            return;
+        }
+
         let i = match self.state.selected() {
             Some(i) => {
                 if i == 0 {
@@ -213,7 +223,7 @@ impl ProcessTable {
                 .borders(Borders::ALL)
                 .title("Crossport TUI (q: Quit, x: Kill)"),
         )
-        .highlight_style(selected_style)
+        .row_highlight_style(selected_style)
         .highlight_symbol(">> ");
 
         f.render_stateful_widget(t, area, &mut self.state);

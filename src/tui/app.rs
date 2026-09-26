@@ -52,20 +52,24 @@ impl App {
     }
 
     pub fn next_sort_col(&mut self) {
+        let selection = self.selection_context();
         self.process_table.next_sort_col();
         self.process_table.sort(&mut self.processes);
+        self.restore_selection(selection);
     }
 
     pub fn toggle_sort_order(&mut self) {
+        let selection = self.selection_context();
         self.process_table.toggle_sort_order();
         self.process_table.sort(&mut self.processes);
+        self.restore_selection(selection);
     }
 
     pub fn kill_selected(&mut self) {
-        if let Some(index) = self.process_table.selected() {
-            if let Some(proc) = self.processes.get(index) {
-                self.input_mode = InputMode::ConfirmKill(proc.pid);
-            }
+        if let Some(index) = self.process_table.selected()
+            && let Some(proc) = self.processes.get(index)
+        {
+            self.input_mode = InputMode::ConfirmKill(proc.pid);
         }
     }
 
@@ -93,10 +97,10 @@ impl App {
     }
 
     pub fn inspect_selected(&mut self) {
-        if let Some(index) = self.process_table.selected() {
-            if let Some(proc) = self.processes.get(index) {
-                self.input_mode = InputMode::Inspecting(proc.clone());
-            }
+        if let Some(index) = self.process_table.selected()
+            && let Some(proc) = self.processes.get(index)
+        {
+            self.input_mode = InputMode::Inspecting(proc.clone());
         }
     }
 
@@ -105,16 +109,13 @@ impl App {
     }
 
     pub fn restart_selected(&mut self) {
-        if let Some(index) = self.process_table.selected() {
-            if let Some(proc) = self.processes.get(index) {
-                if let Some(container) = &proc.container_name {
-                    if proc.kind == crate::core::ProcessKind::Docker
-                        || proc.kind == crate::core::ProcessKind::Kubernetes
-                    {
-                        self.input_mode = InputMode::ConfirmRestart(container.clone());
-                    }
-                }
-            }
+        if let Some(index) = self.process_table.selected()
+            && let Some(proc) = self.processes.get(index)
+            && let Some(container) = &proc.container_name
+            && (proc.kind == crate::core::ProcessKind::Docker
+                || proc.kind == crate::core::ProcessKind::Kubernetes)
+        {
+            self.input_mode = InputMode::ConfirmRestart(container.clone());
         }
     }
 
@@ -151,12 +152,6 @@ impl App {
             return Ok(());
         }
 
-        // Preserve selection
-        let selected_pid = self
-            .process_table
-            .selected()
-            .and_then(|i| self.processes.get(i).map(|p| p.pid));
-
         let snapshot = SystemSnapshot::capture()?;
         let mut processes = Vec::new();
         let query = self.filter_query.to_lowercase();
@@ -188,31 +183,144 @@ impl App {
                 }
             }
         }
-        // Apply sort
-        self.process_table.sort(&mut processes);
-
-        self.processes = processes;
+        self.replace_processes(processes);
         self.snapshot = snapshot;
         self.last_refresh = Instant::now();
-
-        // Restore selection
-        if let Some(pid) = selected_pid {
-            if let Some(pos) = self.processes.iter().position(|p| p.pid == pid) {
-                self.process_table.select(Some(pos));
-            } else {
-                // If selected process is gone, keep index or clamp
-                let current = self.process_table.selected().unwrap_or(0);
-                self.process_table
-                    .select(Some(current.min(self.processes.len().saturating_sub(1))));
-            }
-        } else {
-            self.process_table.select(Some(0));
-        }
 
         Ok(())
     }
 
+    fn replace_processes(&mut self, mut processes: Vec<ProcessInfo>) {
+        let selection = self.selection_context();
+        self.process_table.sort(&mut processes);
+        self.processes = processes;
+        self.restore_selection(selection);
+    }
+
+    fn selection_context(&self) -> (Option<(u32, u16, Option<String>)>, usize) {
+        let selected_index = self.process_table.selected().unwrap_or(0);
+        let selected_row = self
+            .processes
+            .get(selected_index)
+            .map(|process| (process.pid, process.port, process.local_addr.clone()));
+        (selected_row, selected_index)
+    }
+
+    fn restore_selection(
+        &mut self,
+        (selected_row, previous_index): (Option<(u32, u16, Option<String>)>, usize),
+    ) {
+        if self.processes.is_empty() {
+            self.process_table.select(None);
+            return;
+        }
+
+        let index = selected_row
+            .and_then(|(pid, port, local_addr)| {
+                self.processes.iter().position(|process| {
+                    process.pid == pid && process.port == port && process.local_addr == local_addr
+                })
+            })
+            .unwrap_or_else(|| previous_index.min(self.processes.len() - 1));
+
+        self.process_table.select(Some(index));
+    }
+
     pub fn on_tick(&mut self) {
         let _ = self.refresh(false);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::ProcessKind;
+    use std::{collections::HashMap, path::PathBuf};
+
+    fn process(pid: u32, port: u16) -> ProcessInfo {
+        ProcessInfo {
+            pid,
+            user: "user".to_string(),
+            uid: None,
+            cmd: "server".to_string(),
+            cwd: PathBuf::from("/tmp"),
+            project_root: None,
+            container_name: None,
+            kind: ProcessKind::Dev,
+            port,
+            local_addr: Some("127.0.0.1".to_string()),
+            args: Vec::new(),
+        }
+    }
+
+    fn app(processes: Vec<ProcessInfo>) -> App {
+        App {
+            process_table: ProcessTable::new(),
+            processes,
+            snapshot: SystemSnapshot {
+                processes_by_port: HashMap::new(),
+            },
+            input_mode: InputMode::Normal,
+            filter_query: String::new(),
+            last_refresh: Instant::now(),
+        }
+    }
+
+    #[test]
+    fn refresh_preserves_selected_port_when_pid_has_multiple_ports() {
+        let mut app = app(vec![
+            process(10, 3000),
+            process(10, 3001),
+            process(10, 3002),
+        ]);
+        app.process_table.select(Some(2));
+
+        app.replace_processes(vec![
+            process(10, 2999),
+            process(10, 3000),
+            process(10, 3001),
+            process(10, 3002),
+        ]);
+
+        let selected = app.process_table.selected().unwrap();
+        assert_eq!(app.processes[selected].port, 3002);
+    }
+
+    #[test]
+    fn refresh_uses_nearest_valid_row_when_selected_port_disappears() {
+        let mut app = app(vec![
+            process(10, 3000),
+            process(20, 3001),
+            process(30, 3002),
+        ]);
+        app.process_table.select(Some(1));
+
+        app.replace_processes(vec![process(10, 3000), process(30, 3002)]);
+
+        assert_eq!(app.process_table.selected(), Some(1));
+        assert_eq!(app.processes[1].port, 3002);
+    }
+
+    #[test]
+    fn refresh_clears_selection_for_empty_results() {
+        let mut app = app(vec![process(10, 3000)]);
+
+        app.replace_processes(Vec::new());
+        app.next();
+        app.previous();
+
+        assert_eq!(app.process_table.selected(), None);
+    }
+
+    #[test]
+    fn sorting_preserves_selected_process_row() {
+        let mut app = app(vec![process(10, 3000), process(20, 3001)]);
+        app.process_table.select(Some(0));
+
+        app.toggle_sort_order();
+
+        let selected = app.process_table.selected().unwrap();
+        assert_eq!(app.processes[selected].pid, 10);
+        assert_eq!(app.processes[selected].port, 3000);
     }
 }
