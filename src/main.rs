@@ -65,7 +65,9 @@ fn run() -> Result<()> {
             }
 
             if *watch && *json {
-                anyhow::bail!("Cannot use --watch with --json. Use 'watch -n 1 crossport scan --json' or similar instead.");
+                anyhow::bail!(
+                    "Cannot use --watch with --json. Use 'watch -n 1 crossport scan --json' or similar instead."
+                );
             }
 
             if *watch {

@@ -41,10 +41,10 @@ pub struct UiConfig {
 
 pub fn load_config(cli_path: Option<&PathBuf>) -> Result<Config> {
     // 1. CLI
-    if let Some(path) = cli_path {
-        if path.exists() {
-            return load_from_file(path);
-        }
+    if let Some(path) = cli_path
+        && path.exists()
+    {
+        return load_from_file(path);
     }
 
     // 2. Local (crossport.toml)
