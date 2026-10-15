@@ -221,7 +221,7 @@ impl ProcessTable {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Crossport TUI (q: Quit, x: Kill)"),
+                .title("Crossport TUI (Enter: Details, x: Stop, q: Quit)"),
         )
         .row_highlight_style(selected_style)
         .highlight_symbol(">> ");

@@ -1,14 +1,13 @@
-[general]
-# ポート番号を CLI 引数で指定しなかったときに使うデフォルト
-default_port = 8088
+# Copy to ./crossport.toml, or use --config config/crossport.example.toml.
+# Only settings currently used by the CLI are included.
+[scan]
+default_range = "3000-9999"
 
-# OS ごとのバックエンド戦略
-[backend]
-# auto | netstat | lsof | ss みたいなイメージ
-strategy = "auto"
+[kill]
+confirm = true
+# Optional: send only INT, TERM or KILL (Unix).
+# Leave unset to use the staged INT -> TERM -> KILL strategy.
+# default_signal = "TERM"
 
-[output]
-# true なら色付き出力
-color = true
-# true なら詳細情報を多めに出す
-verbose = false
+# TUI stop confirmation and staged termination do not use [kill] settings.
+# ui.color, backend.strategy and output.* do not currently affect behavior.

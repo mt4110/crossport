@@ -27,5 +27,8 @@ jobs:
       - name: Build
         run: cargo build --verbose
 
+      - name: Install listener discovery tool for backend E2E
+        run: sudo apt-get update && sudo apt-get install -y lsof
+
       - name: Run tests
         run: cargo test --verbose

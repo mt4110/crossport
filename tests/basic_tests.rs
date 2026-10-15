@@ -46,6 +46,11 @@ fn test_json_serialization() {
         port: 3000,
         local_addr: None,
         args: vec![],
+        executable: None,
+        parent_pid: None,
+        parent_name: None,
+        started_at: 0,
+        uptime_secs: 0,
     };
 
     let json = serde_json::to_string(&info).unwrap();

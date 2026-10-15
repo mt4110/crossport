@@ -1,6 +1,6 @@
 # Crossport
 
-**Stop guessing "What's using port 8080?".** Crossport visualizes your local development ports with full context (Git/Docker/K8s) and lets you manage them safely.
+**Stop guessing "What's using port 8080?".** Crossport visualizes your local development ports with available Git/Docker/K8s context and lets you inspect and manage the processes behind them.
 
 [![CI](https://github.com/mt4110/crossport/workflows/CI/badge.svg)](https://github.com/mt4110/crossport/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
@@ -39,18 +39,17 @@ cargo install --path .
 
 ```bash
 nix develop
-# 💡 Inside the shell, you can use these shortcuts:
-#   cx     -> cargo run --
-#   build  -> cargo build --release
-#   test   -> cargo test
+cargo run -- ui
+# Build without entering the shell:
+nix build
+./result/bin/crossport ui
+# Or run directly:
+nix run . -- ui
 ```
 
-Or install it globally (like `go install`):
-
-```bash
-nix profile install .
-crossport --version
-```
+The toolchain (Rust 1.98.1) and inputs are pinned with `flake.lock`, for macOS/Linux.
+The first run downloads the toolchain and dependencies. Docker/Kubernetes identification
+requires host Docker/kubectl and appropriate access separately.
 
 ## Quick Start
 
@@ -63,9 +62,24 @@ crossport ui
 ```
 
 **Controls:**
+
 - `j` / `k` or ↑/↓ – Navigate
-- `x` – Kill selected process (with confirmation)
+- `Enter` – Open process details
+- `/` – Filter; `s` / `S` – Change sort column/direction
+- `x` – Confirm stopping the entire process
+- In details/confirmation: `j` / `k`, arrows, PageUp/PageDown – Scroll
+- `Esc` – Close details; `y` – Confirm stop; `n` / `Esc` – Cancel stop
 - `q` – Quit
+
+Details show the executable, macOS app bundle, parent process, uptime at selection,
+working directory, arguments and all observed TCP listening endpoints for the PID.
+Long text wraps. Stop confirmation includes endpoints hidden by the table filter.
+PID, start time and executable are checked again before stopping; changed identity or
+missing start time blocks the action. This does not eliminate PID reuse races throughout termination.
+
+Listening does not imply active use. Last use and automatic restart are unknown because
+they are not monitored. Stopping affects all work in the process and can lose unsaved
+state; graceful termination can escalate to forced termination.
 
 ### Command Line
 
@@ -79,7 +93,7 @@ crossport scan
 crossport scan --from 8000 --to 9000
 
 # JSON output for scripting
-crossport scan --json | jq '.[] | select(.kind == "Docker")'
+crossport scan --json | jq '.[] | select(.kind == "docker")'
 ```
 
 **Output:**
@@ -96,7 +110,7 @@ PORT   PID      USER     CMD      KIND     PROJ
 # Kill with interactive confirmation (default)
 crossport kill 3000
 
-# Force kill without confirmation
+# Force termination (still asks when confirmation is enabled)
 crossport kill 3000 --force
 
 # See what would be killed (dry run)
@@ -115,10 +129,15 @@ crossport suggest --env .env.local --key PORT
 
 ## Configuration
 
-Crossport looks for config files in this order:
-1. CLI arguments (highest priority)
-2. `./crossport.toml` (project-local)
-3. `~/.config/crossport/config.toml` (user global)
+Crossport selects one existing configuration file in this order; files are not merged:
+
+1. An existing file specified with `--config PATH`
+2. `./crossport.toml`
+3. `~/.config/crossport/config.toml`
+
+Corresponding CLI options override configuration values. Kill settings apply to the CLI;
+the TUI always asks for confirmation and uses staged termination. `ui.color` is currently
+parsed but does not affect rendering.
 
 **Example `crossport.toml`:**
 
@@ -128,10 +147,7 @@ default_range = "3000-9000"
 
 [kill]
 confirm = true
-default_signal = "SIGTERM"
-
-[ui]
-color = true
+default_signal = "TERM"
 ```
 
 ## Features
@@ -153,25 +169,37 @@ Perfect for Unix pipelines and automation:
 crossport scan --json | jq '.[] | select(.kind == "dev") | .port'
 
 # Check if port 3000 is in use
-crossport 3000 --json | jq -e '.[0].pid > 0' && echo "Port in use"
+crossport scan --from 3000 --to 3000 --json | jq -e '.[0].pid > 0' && echo "Port in use"
 ```
 
 ### Gentle Kill
 
 Instead of immediately sending `SIGKILL`, Crossport tries:
 1. `SIGINT` (like pressing Ctrl+C) – allows cleanup handlers to run
-2. `SIGTERM` (after 2s) – standard termination signal
-3. `SIGKILL` (after 5s) – forced termination as last resort
+2. `SIGTERM` (after about 1s) – standard termination signal
+3. `SIGKILL` (after about 1 more second) – forced termination as last resort
 
-This gives Node.js, Python, and other runtimes time to close database connections, flush buffers, and save state.
+This is the Unix strategy when no explicit signal is selected; cleanup or saved state is not guaranteed.
+`--signal` / `kill.default_signal` accepts `INT`, `TERM` or `KILL` and sends only that signal when set.
 
 ## Development
 
 ### Running Tests
 
 ```bash
-cargo ctest
+cargo test
 ```
+
+Nix environment checks:
+
+```bash
+nix develop -c cargo test --locked
+nix develop -c cargo clippy --locked --all-targets -- -D warnings
+```
+
+`nix build` also runs the tests. Backend E2E tests own their TCP listeners and exercise
+CLI scanning, process metadata, kill dry-run and discovery after releasing a socket.
+They do not send termination signals or exercise Docker/Kubernetes operations.
 
 ### Building
 
@@ -180,23 +208,19 @@ cargo build --release
 ./target/release/crossport --version
 ```
 
-## Roadmap
+## Implementation Status and Limits
 
-- [x] TUI Mode (`crossport ui`)
-- [x] Docker Integration
-- [x] Configuration Files
-- [x] JSON Output
-- [x] CI/CD with GitHub Actions
-- [x] **v0.3**: Detailed Inspector (Bind IP, internal ports, etc.)
-- [x] **v0.3**: Windows support improvements
-- [x] Watch Mode (`crossport scan --watch`)
-- [x] Kubernetes pod detection
-- [x] Kubernetes port-forward detection
-- [ ] **v0.4**: Advanced TUI
-  - [x] Sort & Filter processes
-  - [x] Detailed Inspector View (Modal)
-  - [ ] Kill History & Logs
-  - [x] Docker/K8s specific actions
+- Implemented: TUI sorting/filtering, scrollable details and stop confirmation, JSON output, configuration files and watch mode.
+- Docker: published-port/container-name mapping and restart action.
+- Kubernetes: inference from `port-forward` arguments and `k8s_` container names; no general Pod enumeration or complete Pod identification.
+- Windows: scans with `netstat` and terminates with `taskkill`, rather than Unix staged signals.
+- Nix: development shell, package build and app; verified on macOS, Linux execution is unverified.
+- Not implemented: kill history/log storage, application-level UID ownership checks and TUI container-restart error display.
+
+`kind` is a heuristic classification, not an assessment of whether stopping is safe.
+CLI `--all-users` bypasses the `system` classification skip; it does not grant privileges.
+The OS still enforces signal permissions. The TUI does not apply the CLI classification skip.
+Unimplemented items are future considerations and are outside this change.
 
 ## Contributing
 

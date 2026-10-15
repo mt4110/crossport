@@ -14,6 +14,11 @@ pub struct ProcessInfo {
     pub port: u16,
     pub local_addr: Option<String>,
     pub args: Vec<String>,
+    pub executable: Option<PathBuf>,
+    pub parent_pid: Option<u32>,
+    pub parent_name: Option<String>,
+    pub started_at: u64,
+    pub uptime_secs: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]

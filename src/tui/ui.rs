@@ -24,7 +24,7 @@ pub fn ui(f: &mut Frame, app: &mut App) {
     } else if !app.filter_query.is_empty() {
         format!("Filter: {} (Esc to clear)", app.filter_query)
     } else {
-        "Keybindings: / Filter | <s> Sort | <S> Rev Sort | <x> Kill | <q> Quit".to_string()
+        "Enter: Details | /: Filter | s/S: Sort | x: Stop | q: Quit".to_string()
     };
 
     let footer_style = if let InputMode::EditingFilter = app.input_mode {
@@ -39,17 +39,16 @@ pub fn ui(f: &mut Frame, app: &mut App) {
 
     f.render_widget(footer, rects[1]);
 
-    if let InputMode::ConfirmKill(pid) = app.input_mode {
-        let block = Block::default().title("Confirm Kill").borders(Borders::ALL);
-        let area = crate::tui::utils::centered_rect(60, 20, f.area());
-        let text = Paragraph::new(format!(
-            "Are you sure you want to kill process {}? (y/n)",
-            pid
-        ))
-        .block(block)
-        .style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD));
-        f.render_widget(Clear, area); // Clear background
-        f.render_widget(text, area);
+    if let InputMode::ConfirmKill(proc) = &app.input_mode {
+        crate::tui::components::inspector::Inspector::render(
+            f,
+            proc,
+            &app.snapshot,
+            &mut app.detail_scroll,
+            &mut app.detail_max_scroll,
+            true,
+            app.action_error.as_deref(),
+        );
     }
 
     if let InputMode::ConfirmRestart(container) = &app.input_mode {
@@ -72,6 +71,14 @@ pub fn ui(f: &mut Frame, app: &mut App) {
     }
 
     if let InputMode::Inspecting(proc) = &app.input_mode {
-        crate::tui::components::inspector::Inspector::render(f, f.area(), proc);
+        crate::tui::components::inspector::Inspector::render(
+            f,
+            proc,
+            &app.snapshot,
+            &mut app.detail_scroll,
+            &mut app.detail_max_scroll,
+            false,
+            None,
+        );
     }
 }

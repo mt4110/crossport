@@ -73,16 +73,48 @@ fn run_app<B: ratatui::backend::Backend<Error = io::Error>>(
                 },
                 InputMode::Inspecting(_) => match key.code {
                     KeyCode::Esc | KeyCode::Char('q') => app.exit_inspect_mode(),
+                    KeyCode::Down | KeyCode::Char('j') => {
+                        app.detail_scroll = app
+                            .detail_scroll
+                            .saturating_add(1)
+                            .min(app.detail_max_scroll)
+                    }
+                    KeyCode::Up | KeyCode::Char('k') => {
+                        app.detail_scroll = app.detail_scroll.saturating_sub(1)
+                    }
+                    KeyCode::PageDown => {
+                        app.detail_scroll = app
+                            .detail_scroll
+                            .saturating_add(10)
+                            .min(app.detail_max_scroll)
+                    }
+                    KeyCode::PageUp => app.detail_scroll = app.detail_scroll.saturating_sub(10),
                     _ => {}
                 },
                 InputMode::ConfirmKill(_) => match key.code {
                     KeyCode::Char('y') => {
-                        let result = app.confirm_kill();
-                        if result.is_err() {
-                            // TODO: Show error in UI? For now just print to stderr or ignore?
+                        if let Err(error) = app.confirm_kill() {
+                            app.action_error = Some(error.to_string());
+                            app.detail_scroll = 0;
                         }
                     }
                     KeyCode::Char('n') | KeyCode::Esc => app.cancel_kill(),
+                    KeyCode::Down | KeyCode::Char('j') => {
+                        app.detail_scroll = app
+                            .detail_scroll
+                            .saturating_add(1)
+                            .min(app.detail_max_scroll)
+                    }
+                    KeyCode::Up | KeyCode::Char('k') => {
+                        app.detail_scroll = app.detail_scroll.saturating_sub(1)
+                    }
+                    KeyCode::PageDown => {
+                        app.detail_scroll = app
+                            .detail_scroll
+                            .saturating_add(10)
+                            .min(app.detail_max_scroll)
+                    }
+                    KeyCode::PageUp => app.detail_scroll = app.detail_scroll.saturating_sub(10),
                     _ => {}
                 },
                 InputMode::ConfirmRestart(_) => match key.code {

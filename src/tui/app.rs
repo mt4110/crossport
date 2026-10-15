@@ -6,7 +6,7 @@ pub enum InputMode {
     Normal,
     EditingFilter,
     Inspecting(ProcessInfo),
-    ConfirmKill(u32),
+    ConfirmKill(ProcessInfo),
     ConfirmRestart(String),
 }
 
@@ -19,6 +19,9 @@ pub struct App {
     pub input_mode: InputMode,
     pub filter_query: String,
     pub last_refresh: Instant,
+    pub detail_scroll: u16,
+    pub detail_max_scroll: u16,
+    pub action_error: Option<String>,
 }
 
 impl App {
@@ -40,6 +43,9 @@ impl App {
             input_mode: InputMode::Normal,
             filter_query: String::new(),
             last_refresh: Instant::now(),
+            detail_scroll: 0,
+            detail_max_scroll: 0,
+            action_error: None,
         })
     }
 
@@ -69,14 +75,25 @@ impl App {
         if let Some(index) = self.process_table.selected()
             && let Some(proc) = self.processes.get(index)
         {
-            self.input_mode = InputMode::ConfirmKill(proc.pid);
+            self.detail_scroll = 0;
+            self.action_error = None;
+            self.input_mode = InputMode::ConfirmKill(proc.clone());
         }
     }
 
     pub fn confirm_kill(&mut self) -> Result<()> {
-        if let InputMode::ConfirmKill(pid) = self.input_mode {
-            crate::ops::kill_process(pid, None, false, false)?;
-            self.refresh(true)?; // Force refresh after kill
+        if let InputMode::ConfirmKill(target) = &self.input_mode {
+            let mut system = sysinfo::System::new_all();
+            system.refresh_all();
+            let current = system.process(sysinfo::Pid::from_u32(target.pid));
+            anyhow::ensure!(
+                target.started_at != 0
+                    && current.is_some_and(|p| p.start_time() == target.started_at
+                        && p.exe() == target.executable.as_deref()),
+                "Process exited or changed. Close this dialog and select it again."
+            );
+            crate::ops::kill_process(target.pid, None, false, false)?;
+            self.refresh(true)?;
         }
         self.input_mode = InputMode::Normal;
         Ok(())
@@ -100,6 +117,7 @@ impl App {
         if let Some(index) = self.process_table.selected()
             && let Some(proc) = self.processes.get(index)
         {
+            self.detail_scroll = 0;
             self.input_mode = InputMode::Inspecting(proc.clone());
         }
     }
@@ -250,6 +268,11 @@ mod tests {
             port,
             local_addr: Some("127.0.0.1".to_string()),
             args: Vec::new(),
+            executable: None,
+            parent_pid: None,
+            parent_name: None,
+            started_at: 0,
+            uptime_secs: 0,
         }
     }
 
@@ -263,7 +286,102 @@ mod tests {
             input_mode: InputMode::Normal,
             filter_query: String::new(),
             last_refresh: Instant::now(),
+            detail_scroll: 0,
+            detail_max_scroll: 0,
+            action_error: None,
         }
+    }
+
+    #[test]
+    fn confirmation_keeps_original_target_when_selection_changes() {
+        let mut app = app(vec![process(10, 3000), process(20, 3001)]);
+        app.process_table.select(Some(0));
+        app.kill_selected();
+        app.replace_processes(vec![process(20, 3001)]);
+        assert!(matches!(&app.input_mode, InputMode::ConfirmKill(p) if p.pid == 10));
+        app.cancel_kill();
+        assert!(matches!(app.input_mode, InputMode::Normal));
+    }
+
+    #[test]
+    fn missing_process_identity_blocks_termination() {
+        let mut app = app(vec![process(std::process::id(), 3000)]);
+        app.process_table.select(Some(0));
+        app.kill_selected();
+        assert!(app.confirm_kill().is_err());
+        assert!(matches!(app.input_mode, InputMode::ConfirmKill(_)));
+    }
+
+    #[test]
+    fn changed_start_time_blocks_termination_of_existing_pid() {
+        let system = sysinfo::System::new_all();
+        let current = system
+            .process(sysinfo::Pid::from_u32(std::process::id()))
+            .unwrap();
+        let mut target = process(std::process::id(), 3000);
+        target.started_at = current.start_time().saturating_sub(1);
+        target.executable = current.exe().map(PathBuf::from);
+        let mut app = app(vec![target]);
+        app.process_table.select(Some(0));
+        app.kill_selected();
+        assert!(app.confirm_kill().is_err());
+        assert!(matches!(app.input_mode, InputMode::ConfirmKill(_)));
+    }
+
+    #[test]
+    fn confirmation_shows_ports_hidden_by_filter_and_deduplicates_endpoints() {
+        let mut app = app(vec![process(10, 3000)]);
+        app.snapshot
+            .processes_by_port
+            .insert(3000, vec![process(10, 3000)]);
+        app.snapshot
+            .processes_by_port
+            .insert(3001, vec![process(10, 3001), process(10, 3001)]);
+        app.process_table.select(Some(0));
+        app.kill_selected();
+        let mut terminal =
+            ratatui::Terminal::new(ratatui::backend::TestBackend::new(120, 50)).unwrap();
+        terminal
+            .draw(|frame| crate::tui::ui::ui(frame, &mut app))
+            .unwrap();
+        let contents = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert!(contents.contains("127.0.0.1:3000, 127.0.0.1:3001"));
+        assert!(contents.contains("entire process"));
+        assert!(contents.contains("Last used: Unknown"));
+    }
+
+    #[test]
+    fn details_scroll_to_last_argument_at_standard_terminal_size() {
+        let mut proc = process(10, 3000);
+        proc.args = vec!["/very/long/path/".repeat(20), "TAILEND".into()];
+        let mut app = app(vec![proc]);
+        app.process_table.select(Some(0));
+        app.inspect_selected();
+        let mut terminal =
+            ratatui::Terminal::new(ratatui::backend::TestBackend::new(80, 24)).unwrap();
+        terminal
+            .draw(|frame| crate::tui::ui::ui(frame, &mut app))
+            .unwrap();
+        assert!(app.detail_max_scroll > 0);
+        app.detail_scroll = u16::MAX;
+        terminal
+            .draw(|frame| crate::tui::ui::ui(frame, &mut app))
+            .unwrap();
+        assert_eq!(app.detail_scroll, app.detail_max_scroll);
+        let contents = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert!(contents.contains("TAILEND"));
     }
 
     #[test]

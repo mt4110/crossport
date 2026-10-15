@@ -139,6 +139,14 @@ fn enrich_process_info(
             Some(local_addr)
         },
         args,
+        executable: process.exe().map(PathBuf::from),
+        parent_pid: process.parent().map(|pid| pid.as_u32()),
+        parent_name: process
+            .parent()
+            .and_then(|pid| sys.process(pid))
+            .map(|p| p.name().to_string_lossy().into_owned()),
+        started_at: process.start_time(),
+        uptime_secs: process.run_time(),
     })
 }
 
