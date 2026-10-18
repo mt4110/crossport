@@ -71,3 +71,22 @@ fn truncate(s: &str, max_width: usize) -> String {
         s.to_string()
     }
 }
+
+pub fn print_verbose(info: &ProcessInfo) {
+    println!(
+        "  PID {}: executable={} parent={} started_at={} uptime={}s uid={}",
+        info.pid,
+        info.executable
+            .as_deref()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "unknown".into()),
+        info.parent_pid
+            .map(|p| p.to_string())
+            .unwrap_or_else(|| "unknown".into()),
+        info.started_at,
+        info.uptime_secs,
+        info.uid
+            .map(|uid| uid.to_string())
+            .unwrap_or_else(|| "unknown".into())
+    );
+}

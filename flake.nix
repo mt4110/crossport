@@ -1,58 +1,61 @@
 {
-  description = "crossport dev environment";
+  description = "Crossport development environment and package";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     flake-utils.url = "github:numtide/flake-utils";
-
-    # 🔥 Rust overlay を追加：これが rust-bin の正体
-    rust-overlay.url = "github:oxalica/rust-overlay";
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = { self, nixpkgs, flake-utils, rust-overlay }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        # overlay を適用した nixpkgs を作る
         pkgs = import nixpkgs {
           inherit system;
-          overlays = [
-            (import rust-overlay) # ←これで rust-bin が生える
-          ];
+          overlays = [ (import rust-overlay) ];
         };
-
-        lib = pkgs.lib;
+        toolchain = pkgs.rust-bin.stable."1.98.1".minimal.override {
+          extensions = [ "rustfmt" "clippy" ];
+        };
+        rustPlatform = pkgs.makeRustPlatform {
+          cargo = toolchain;
+          rustc = toolchain;
+        };
+        scanTools = [ pkgs.lsof ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.iproute2 pkgs.nettools ];
+        crossport = rustPlatform.buildRustPackage {
+          pname = "crossport";
+          version = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).package.version;
+          src = pkgs.lib.cleanSource ./.;
+          cargoLock.lockFile = ./Cargo.lock;
+          nativeBuildInputs = [ pkgs.makeWrapper ];
+          nativeCheckInputs = scanTools;
+          doCheck = true;
+          buildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ pkgs.libiconv ];
+          # Unix scanning requires lsof even outside a development shell.
+          postInstall = ''
+            wrapProgram $out/bin/crossport --prefix PATH : ${pkgs.lib.makeBinPath scanTools}
+          '';
+          meta = {
+            description = "Inspect and manage local listening ports";
+            license = pkgs.lib.licenses.mit;
+            mainProgram = "crossport";
+          };
+        };
       in {
+        packages.default = crossport;
+        apps.default = {
+          type = "app";
+          program = "${crossport}/bin/crossport";
+        };
+        checks.default = crossport;
         devShells.default = pkgs.mkShell {
-          buildInputs = [
-            # Rust 1.91.0 をここで使えるようになる
-            pkgs.rust-bin.stable."1.91.0".default
-
-            pkgs.pkg-config
-            pkgs.openssl
-            pkgs.libiconv
-            pkgs.nixfmt-classic
-          ] ++ lib.optionals pkgs.stdenv.isDarwin [
-            pkgs.darwin.apple_sdk.frameworks.IOKit
-            pkgs.darwin.apple_sdk.frameworks.CoreFoundation
-            pkgs.darwin.apple_sdk.frameworks.Security
-          ];
-
-          LIBRARY_PATH = lib.makeLibraryPath [ pkgs.libiconv ]
-            + (if builtins.getEnv "LIBRARY_PATH" == "" then
-              ""
-            else
-              ":" + builtins.getEnv "LIBRARY_PATH");
-
+          packages = [ toolchain ] ++ scanTools;
+          buildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ pkgs.libiconv ];
           shellHook = ''
-            echo "🚀 crossport dev shell (Rust 1.91.0)"
-            echo "💡 Tips: "
-            echo "   - 'cx <args>': alias for 'cargo run -- <args>'"
-            echo "   - 'build': alias for 'cargo build --release'"
-            echo "   - 'test': alias for 'cargo test'"
-
-            alias cx="cargo run --"
-            alias build="cargo build --release"
-            alias test="cargo test"
+            echo "Crossport: cargo run -- ui | cargo test | nix build"
           '';
         };
       });

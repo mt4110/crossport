@@ -1,6 +1,6 @@
 # Crossport
 
-**Stop guessing "What's using port 8080?".** Crossport visualizes your local development ports with full context (Git/Docker/K8s) and lets you manage them safely.
+**Stop guessing "What's using port 8080?".** Crossport visualizes your local development ports with available Git/Docker/K8s context and lets you inspect and manage the processes behind them.
 
 [![CI](https://github.com/mt4110/crossport/workflows/CI/badge.svg)](https://github.com/mt4110/crossport/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
@@ -39,18 +39,17 @@ cargo install --path .
 
 ```bash
 nix develop
-# 💡 Inside the shell, you can use these shortcuts:
-#   cx     -> cargo run --
-#   build  -> cargo build --release
-#   test   -> cargo test
+cargo run -- ui
+# Build without entering the shell:
+nix build
+./result/bin/crossport ui
+# Or run directly:
+nix run . -- ui
 ```
 
-Or install it globally (like `go install`):
-
-```bash
-nix profile install .
-crossport --version
-```
+The toolchain (Rust 1.98.1) and inputs are pinned with `flake.lock`, for macOS/Linux.
+The first run downloads the toolchain and dependencies. Docker/Kubernetes identification
+requires host Docker/kubectl and appropriate access separately.
 
 ## Quick Start
 
@@ -63,9 +62,25 @@ crossport ui
 ```
 
 **Controls:**
+
 - `j` / `k` or ↑/↓ – Navigate
-- `x` – Kill selected process (with confirmation)
+- `Enter` – Open process details
+- `/` – Filter; `s` / `S` – Change sort column/direction
+- `h` – Show session/saved action history; `r` – Confirm container restart
+- `x` – Confirm stopping the entire process
+- In details/confirmation: `j` / `k`, arrows, PageUp/PageDown – Scroll
+- `Esc` – Close details; `y` – Confirm stop; `n` / `Esc` – Cancel stop
 - `q` – Quit
+
+Details show the executable, macOS app bundle, parent process, uptime at selection,
+working directory, arguments and all observed TCP listening endpoints for the PID.
+Long text wraps. Stop confirmation includes endpoints hidden by the table filter.
+PID, start time and executable are checked again before stopping; changed identity or
+missing start time blocks the action. This does not eliminate PID reuse races throughout termination.
+
+Listening does not imply active use. Last use and automatic restart are unknown because
+they are not monitored. Stopping affects all work in the process and can lose unsaved
+state; graceful termination can escalate to forced termination.
 
 ### Command Line
 
@@ -79,7 +94,7 @@ crossport scan
 crossport scan --from 8000 --to 9000
 
 # JSON output for scripting
-crossport scan --json | jq '.[] | select(.kind == "Docker")'
+crossport scan --json | jq '.[] | select(.kind == "docker")'
 ```
 
 **Output:**
@@ -96,7 +111,7 @@ PORT   PID      USER     CMD      KIND     PROJ
 # Kill with interactive confirmation (default)
 crossport kill 3000
 
-# Force kill without confirmation
+# Force termination (still asks when confirmation is enabled)
 crossport kill 3000 --force
 
 # See what would be killed (dry run)
@@ -113,12 +128,31 @@ crossport suggest
 crossport suggest --env .env.local --key PORT
 ```
 
+
+### Preview release
+
+`v0.5.0-rc.1` is a prerelease for hands-on testing before the pending PR is merged.
+Download binaries and `SHA256SUMS` from its GitHub Release, or use Nix:
+
+```bash
+nix run github:mt4110/crossport/v0.5.0-rc.1 -- --version
+nix run github:mt4110/crossport/v0.5.0-rc.1 -- ui
+```
+
+The Git tag is signed; release binaries are not code-signed or notarized.
+
 ## Configuration
 
-Crossport looks for config files in this order:
-1. CLI arguments (highest priority)
-2. `./crossport.toml` (project-local)
-3. `~/.config/crossport/config.toml` (user global)
+Crossport selects one configuration file in this order; files are not merged.
+Missing explicit files, unknown keys and invalid settings are errors:
+
+1. A file specified with `--config PATH`
+2. `./crossport.toml`
+3. `~/.config/crossport/config.toml`
+
+Corresponding CLI options override configuration values. Kill settings apply to the CLI;
+the TUI always asks for confirmation and uses staged termination. See the
+[complete configuration example](config/crossport.example.toml).
 
 **Example `crossport.toml`:**
 
@@ -128,10 +162,7 @@ default_range = "3000-9000"
 
 [kill]
 confirm = true
-default_signal = "SIGTERM"
-
-[ui]
-color = true
+default_signal = "TERM"
 ```
 
 ## Features
@@ -153,25 +184,39 @@ Perfect for Unix pipelines and automation:
 crossport scan --json | jq '.[] | select(.kind == "dev") | .port'
 
 # Check if port 3000 is in use
-crossport 3000 --json | jq -e '.[0].pid > 0' && echo "Port in use"
+crossport scan --from 3000 --to 3000 --json | jq -e '.[0].pid > 0' && echo "Port in use"
 ```
 
 ### Gentle Kill
 
 Instead of immediately sending `SIGKILL`, Crossport tries:
 1. `SIGINT` (like pressing Ctrl+C) – allows cleanup handlers to run
-2. `SIGTERM` (after 2s) – standard termination signal
-3. `SIGKILL` (after 5s) – forced termination as last resort
+2. `SIGTERM` (after about 1s) – standard termination signal
+3. `SIGKILL` (after about 1 more second) – forced termination as last resort
 
-This gives Node.js, Python, and other runtimes time to close database connections, flush buffers, and save state.
+This is the Unix strategy when no explicit signal is selected; cleanup or saved state is not guaranteed.
+`--signal` / `kill.default_signal` accepts `INT`, `TERM` or `KILL` and sends only that signal when set.
 
 ## Development
 
 ### Running Tests
 
 ```bash
-cargo ctest
+cargo test
 ```
+
+Nix environment checks:
+
+```bash
+nix develop -c cargo test --locked
+nix develop -c cargo clippy --locked --all-targets -- -D warnings
+```
+
+`nix build` also runs the tests. Backend E2E tests own their TCP listeners and exercise
+CLI scanning, process metadata, kill dry-run and discovery after releasing a socket.
+A separate stop E2E sends TERM only to its own dedicated child fixture and verifies disappearance.
+Existing services and Docker/Kubernetes operations are not exercised.
+The race regression controls the `lsof` reply and starts a real listening child after process metadata capture; discovery must fail as incomplete rather than report a free port.
 
 ### Building
 
@@ -180,23 +225,36 @@ cargo build --release
 ./target/release/crossport --version
 ```
 
-## Roadmap
+## Settings, History and Ownership
 
-- [x] TUI Mode (`crossport ui`)
-- [x] Docker Integration
-- [x] Configuration Files
-- [x] JSON Output
-- [x] CI/CD with GitHub Actions
-- [x] **v0.3**: Detailed Inspector (Bind IP, internal ports, etc.)
-- [x] **v0.3**: Windows support improvements
-- [x] Watch Mode (`crossport scan --watch`)
-- [x] Kubernetes pod detection
-- [x] Kubernetes port-forward detection
-- [ ] **v0.4**: Advanced TUI
-  - [x] Sort & Filter processes
-  - [x] Detailed Inspector View (Modal)
-  - [ ] Kill History & Logs
-  - [x] Docker/K8s specific actions
+- `general.default_port`: inspected by bare `crossport` when no command/port is supplied. Without it, help is shown.
+- `backend.strategy`: `auto` uses Unix `lsof` or Windows `netstat`. Explicit backends: `lsof` (Unix), `ss` (Linux), `netstat` (Linux/Windows). Unsupported OS combinations and command failures are errors. Linux parser fixtures are tested; live Linux execution is unverified. Process visibility also depends on OS permissions. If `ss` or Linux `netstat` reports a listener whose PID is unavailable or malformed, the whole scan fails rather than treating partial results as free ports. For every backend, a detected PID missing from process metadata also fails the entire capture instead of discarding the listener.
+- `output.verbose` / `--verbose`: adds executable, parent PID, start time (Unix seconds), uptime and UID to CLI text output. JSON is unchanged.
+- `output.color`: sets CLI colors and the TUI default. `ui.color` overrides the TUI; disabling colors keeps reverse-video selection.
+- Stop actions re-read ownership. Unix compares the owner UID to the caller's effective UID; Windows compares user identifiers. Unknown/foreign owners are rejected. CLI `--all-users` explicitly bypasses this comparison but grants no OS privileges; the TUI has no bypass.
+- Container restart failures appear in a scrollable error dialog and are not automatically retried. If a stop/restart succeeds but refreshing ports fails, the TUI distinguishes completed actions from failed display updates, preserves successful history, warns that displayed data may be stale and does not repeat the action.
+
+TUI `h` displays session stop/restart history. Set `history.enabled = true` to save
+CLI/TUI events locally and load them next time. Use `crossport history` or `crossport history --json` to read saved events.
+The default path is the platform local-data directory plus `crossport/history.json`;
+`history.path` overrides it. `history.max_entries` keeps the newest events (default 200, range 1..10000).
+Only Unix timestamp, PID, port, action and outcome are stored: no arguments, paths,
+usernames or error text. Dry-runs and failed attempts are recorded; canceled actions and scans are not.
+Success means the operation returned without error, not a guarantee of workload health.
+
+On Unix, history files require owner-only access (0600); newly created directories use 0700.
+Updates use an exclusive lock and atomic file replacement. Corruption and save failures
+are reported; lock contention can prevent saving an event. The operation itself is not retried.
+Windows access control depends on the destination's OS ACL. Choose a private directory.
+
+## Implementation Status and Limits
+
+TUI, JSON, watch mode, settings, action history, ownership checks and restart errors are implemented.
+Docker provides published-port/name mapping and restart. Kubernetes inference uses
+`port-forward` arguments and `k8s_` names, with no general Pod enumeration.
+Windows uses `netstat` / `taskkill` rather than Unix staged signals.
+`kind` is a heuristic classification, not a safety assessment.
+Nix is verified on macOS; live Linux/Windows and Docker/Kubernetes operations are outside local verification.
 
 ## Contributing
 
@@ -207,7 +265,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 **Crossport runs entirely on your local machine.**
 
-- **No Data Collection**: It does not collect, store, or transmit any analytical data or code from your computer.
+- **Local History**: Saving action history requires explicit opt-in, with bounded fields and retention as described above. No analytics are uploaded.
 - **Local Operations**: All port scanning and process management happens locally using standard system APIs (`lsof`, `netstat`, Docker API).
 - **Open Source**: The code is 100% open source. You can verify exactly what it does by reviewing the source code.
 

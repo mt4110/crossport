@@ -2,6 +2,8 @@ pub mod cli;
 pub mod config;
 pub mod core;
 pub mod display;
+pub mod history;
 pub mod ops;
+pub mod permissions;
 pub mod tui;
 pub mod utils;
