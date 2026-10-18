@@ -66,6 +66,7 @@ crossport ui
 - `j` / `k` or ↑/↓ – Navigate
 - `Enter` – Open process details
 - `/` – Filter; `s` / `S` – Change sort column/direction
+- `h` – Show session/saved action history; `r` – Confirm container restart
 - `x` – Confirm stopping the entire process
 - In details/confirmation: `j` / `k`, arrows, PageUp/PageDown – Scroll
 - `Esc` – Close details; `y` – Confirm stop; `n` / `Esc` – Cancel stop
@@ -129,15 +130,16 @@ crossport suggest --env .env.local --key PORT
 
 ## Configuration
 
-Crossport selects one existing configuration file in this order; files are not merged:
+Crossport selects one configuration file in this order; files are not merged.
+Missing explicit files, unknown keys and invalid settings are errors:
 
-1. An existing file specified with `--config PATH`
+1. A file specified with `--config PATH`
 2. `./crossport.toml`
 3. `~/.config/crossport/config.toml`
 
 Corresponding CLI options override configuration values. Kill settings apply to the CLI;
-the TUI always asks for confirmation and uses staged termination. `ui.color` is currently
-parsed but does not affect rendering.
+the TUI always asks for confirmation and uses staged termination. See the
+[complete configuration example](config/crossport.example.toml).
 
 **Example `crossport.toml`:**
 
@@ -199,7 +201,9 @@ nix develop -c cargo clippy --locked --all-targets -- -D warnings
 
 `nix build` also runs the tests. Backend E2E tests own their TCP listeners and exercise
 CLI scanning, process metadata, kill dry-run and discovery after releasing a socket.
-They do not send termination signals or exercise Docker/Kubernetes operations.
+A separate stop E2E sends TERM only to its own dedicated child fixture and verifies disappearance.
+Existing services and Docker/Kubernetes operations are not exercised.
+The race regression controls the `lsof` reply and starts a real listening child after process metadata capture; discovery must fail as incomplete rather than report a free port.
 
 ### Building
 
@@ -208,19 +212,36 @@ cargo build --release
 ./target/release/crossport --version
 ```
 
+## Settings, History and Ownership
+
+- `general.default_port`: inspected by bare `crossport` when no command/port is supplied. Without it, help is shown.
+- `backend.strategy`: `auto` uses Unix `lsof` or Windows `netstat`. Explicit backends: `lsof` (Unix), `ss` (Linux), `netstat` (Linux/Windows). Unsupported OS combinations and command failures are errors. Linux parser fixtures are tested; live Linux execution is unverified. Process visibility also depends on OS permissions. If `ss` or Linux `netstat` reports a listener whose PID is unavailable or malformed, the whole scan fails rather than treating partial results as free ports. For every backend, a detected PID missing from process metadata also fails the entire capture instead of discarding the listener.
+- `output.verbose` / `--verbose`: adds executable, parent PID, start time (Unix seconds), uptime and UID to CLI text output. JSON is unchanged.
+- `output.color`: sets CLI colors and the TUI default. `ui.color` overrides the TUI; disabling colors keeps reverse-video selection.
+- Stop actions re-read ownership. Unix compares the owner UID to the caller's effective UID; Windows compares user identifiers. Unknown/foreign owners are rejected. CLI `--all-users` explicitly bypasses this comparison but grants no OS privileges; the TUI has no bypass.
+- Container restart failures appear in a scrollable error dialog and are not automatically retried. If a stop/restart succeeds but refreshing ports fails, the TUI distinguishes completed actions from failed display updates, preserves successful history, warns that displayed data may be stale and does not repeat the action.
+
+TUI `h` displays session stop/restart history. Set `history.enabled = true` to save
+CLI/TUI events locally and load them next time. Use `crossport history` or `crossport history --json` to read saved events.
+The default path is the platform local-data directory plus `crossport/history.json`;
+`history.path` overrides it. `history.max_entries` keeps the newest events (default 200, range 1..10000).
+Only Unix timestamp, PID, port, action and outcome are stored: no arguments, paths,
+usernames or error text. Dry-runs and failed attempts are recorded; canceled actions and scans are not.
+Success means the operation returned without error, not a guarantee of workload health.
+
+On Unix, history files require owner-only access (0600); newly created directories use 0700.
+Updates use an exclusive lock and atomic file replacement. Corruption and save failures
+are reported; lock contention can prevent saving an event. The operation itself is not retried.
+Windows access control depends on the destination's OS ACL. Choose a private directory.
+
 ## Implementation Status and Limits
 
-- Implemented: TUI sorting/filtering, scrollable details and stop confirmation, JSON output, configuration files and watch mode.
-- Docker: published-port/container-name mapping and restart action.
-- Kubernetes: inference from `port-forward` arguments and `k8s_` container names; no general Pod enumeration or complete Pod identification.
-- Windows: scans with `netstat` and terminates with `taskkill`, rather than Unix staged signals.
-- Nix: development shell, package build and app; verified on macOS, Linux execution is unverified.
-- Not implemented: kill history/log storage, application-level UID ownership checks and TUI container-restart error display.
-
-`kind` is a heuristic classification, not an assessment of whether stopping is safe.
-CLI `--all-users` bypasses the `system` classification skip; it does not grant privileges.
-The OS still enforces signal permissions. The TUI does not apply the CLI classification skip.
-Unimplemented items are future considerations and are outside this change.
+TUI, JSON, watch mode, settings, action history, ownership checks and restart errors are implemented.
+Docker provides published-port/name mapping and restart. Kubernetes inference uses
+`port-forward` arguments and `k8s_` names, with no general Pod enumeration.
+Windows uses `netstat` / `taskkill` rather than Unix staged signals.
+`kind` is a heuristic classification, not a safety assessment.
+Nix is verified on macOS; live Linux/Windows and Docker/Kubernetes operations are outside local verification.
 
 ## Contributing
 
@@ -231,7 +252,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 **Crossport runs entirely on your local machine.**
 
-- **No Data Collection**: It does not collect, store, or transmit any analytical data or code from your computer.
+- **Local History**: Saving action history requires explicit opt-in, with bounded fields and retention as described above. No analytics are uploaded.
 - **Local Operations**: All port scanning and process management happens locally using standard system APIs (`lsof`, `netstat`, Docker API).
 - **Open Source**: The code is 100% open source. You can verify exactly what it does by reviewing the source code.
 

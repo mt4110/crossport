@@ -82,6 +82,12 @@ pub enum Commands {
         force: bool,
     },
 
+    /// Show locally saved action history (requires history.enabled)
+    History {
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Start interactive TUI mode
     Ui,
 }

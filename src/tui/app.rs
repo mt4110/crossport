@@ -7,7 +7,10 @@ pub enum InputMode {
     EditingFilter,
     Inspecting(ProcessInfo),
     ConfirmKill(ProcessInfo),
-    ConfirmRestart(String),
+    ConfirmRestart(ProcessInfo),
+    History,
+    Message(String),
+    CompletedWithWarning(String),
 }
 
 use std::time::{Duration, Instant};
@@ -22,11 +25,19 @@ pub struct App {
     pub detail_scroll: u16,
     pub detail_max_scroll: u16,
     pub action_error: Option<String>,
+    pub settings: crate::config::Config,
+    pub events: Vec<crate::history::Event>,
 }
 
 impl App {
-    pub fn new() -> Result<Self> {
-        let snapshot = SystemSnapshot::capture()?;
+    pub fn new(settings: crate::config::Config) -> Result<Self> {
+        let snapshot = SystemSnapshot::capture_with(settings.backend.strategy)?;
+        let events = crate::history::read(&settings.history);
+        let history_error = events
+            .as_ref()
+            .err()
+            .map(|error| format!("History load failed: {error}"));
+        let events = events.unwrap_or_default();
         let mut processes = Vec::new();
         for infos in snapshot.processes_by_port.values() {
             processes.extend(infos.clone());
@@ -45,7 +56,9 @@ impl App {
             last_refresh: Instant::now(),
             detail_scroll: 0,
             detail_max_scroll: 0,
-            action_error: None,
+            action_error: history_error,
+            settings,
+            events,
         })
     }
 
@@ -83,20 +96,43 @@ impl App {
 
     pub fn confirm_kill(&mut self) -> Result<()> {
         if let InputMode::ConfirmKill(target) = &self.input_mode {
-            let mut system = sysinfo::System::new_all();
-            system.refresh_all();
-            let current = system.process(sysinfo::Pid::from_u32(target.pid));
-            anyhow::ensure!(
-                target.started_at != 0
-                    && current.is_some_and(|p| p.start_time() == target.started_at
-                        && p.exe() == target.executable.as_deref()),
-                "Process exited or changed. Close this dialog and select it again."
-            );
-            crate::ops::kill_process(target.pid, None, false, false)?;
-            self.refresh(true)?;
+            let target = target.clone();
+            let result = crate::permissions::ensure_owned(&target, false)
+                .and_then(|_| crate::ops::terminate_process(target.pid, None, false, false, false));
+            self.record_action(&target, crate::history::Action::Stop, &result);
+            result?;
+            self.finish_successful_action("Stop", |app| app.refresh(true));
         }
-        self.input_mode = InputMode::Normal;
         Ok(())
+    }
+
+    fn record_action(
+        &mut self,
+        target: &ProcessInfo,
+        action: crate::history::Action,
+        result: &Result<()>,
+    ) {
+        let outcome = if result.is_ok() {
+            crate::history::Outcome::Success
+        } else {
+            crate::history::Outcome::Failed
+        };
+        let event = crate::history::Event::new(target.pid, target.port, action, outcome);
+        if let Err(error) = crate::history::record(&self.settings.history, &event) {
+            self.action_error = Some(format!(
+                "History save failed (operation is not retried): {error}"
+            ));
+        }
+        self.events.push(event);
+        let keep = self.settings.history.max_entries;
+        if self.events.len() > keep {
+            self.events.drain(..self.events.len() - keep);
+        }
+    }
+
+    pub fn show_history(&mut self) {
+        self.detail_scroll = 0;
+        self.input_mode = InputMode::History;
     }
 
     pub fn cancel_kill(&mut self) {
@@ -129,21 +165,58 @@ impl App {
     pub fn restart_selected(&mut self) {
         if let Some(index) = self.process_table.selected()
             && let Some(proc) = self.processes.get(index)
-            && let Some(container) = &proc.container_name
+            && proc.container_name.is_some()
             && (proc.kind == crate::core::ProcessKind::Docker
                 || proc.kind == crate::core::ProcessKind::Kubernetes)
         {
-            self.input_mode = InputMode::ConfirmRestart(container.clone());
+            self.action_error = None;
+            self.input_mode = InputMode::ConfirmRestart(proc.clone());
         }
     }
 
     pub fn confirm_restart(&mut self) -> Result<()> {
-        if let InputMode::ConfirmRestart(container) = &self.input_mode {
-            crate::ops::restart_container(container)?;
-            self.refresh(true)?;
+        self.restart_with(crate::ops::restart_container)
+    }
+
+    fn restart_with(&mut self, restart: impl FnOnce(&str) -> Result<()>) -> Result<()> {
+        self.restart_with_refresh(restart, |app| app.refresh(true))
+    }
+
+    fn restart_with_refresh(
+        &mut self,
+        restart: impl FnOnce(&str) -> Result<()>,
+        refresh: impl FnOnce(&mut Self) -> Result<()>,
+    ) -> Result<()> {
+        if let InputMode::ConfirmRestart(target) = &self.input_mode {
+            let target = target.clone();
+            let result = target
+                .container_name
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("No container target"))
+                .and_then(restart);
+            self.record_action(&target, crate::history::Action::Restart, &result);
+            if let Err(error) = result {
+                self.input_mode = InputMode::Message(error.to_string());
+                self.detail_scroll = 0;
+                return Err(error);
+            }
+            self.finish_successful_action("Restart", refresh);
         }
-        self.input_mode = InputMode::Normal;
         Ok(())
+    }
+
+    fn finish_successful_action(
+        &mut self,
+        action: &str,
+        refresh: impl FnOnce(&mut Self) -> Result<()>,
+    ) {
+        self.input_mode = InputMode::Normal;
+        if let Err(error) = refresh(self) {
+            self.detail_scroll = 0;
+            self.input_mode = InputMode::CompletedWithWarning(format!(
+                "{action} request completed, but refreshing ports failed.\nDisplayed port data may be stale. Do not repeat the action just to refresh.\n\n{error}"
+            ));
+        }
     }
 
     pub fn cancel_restart(&mut self) {
@@ -170,7 +243,7 @@ impl App {
             return Ok(());
         }
 
-        let snapshot = SystemSnapshot::capture()?;
+        let snapshot = SystemSnapshot::capture_with(self.settings.backend.strategy)?;
         let mut processes = Vec::new();
         let query = self.filter_query.to_lowercase();
 
@@ -289,6 +362,111 @@ mod tests {
             detail_scroll: 0,
             detail_max_scroll: 0,
             action_error: None,
+            settings: crate::config::Config::default(),
+            events: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn restart_failure_is_visible_recorded_and_cannot_be_confirmed_again() {
+        let mut target = process(10, 3000);
+        target.container_name = Some("fixture".into());
+        let mut app = app(vec![target.clone()]);
+        app.input_mode = InputMode::ConfirmRestart(target);
+        assert!(
+            app.restart_with(|_| Err(anyhow::anyhow!("fixture restart failure")))
+                .is_err()
+        );
+        assert!(
+            matches!(&app.input_mode, InputMode::Message(text) if text.contains("fixture restart failure"))
+        );
+        assert_eq!(app.events.len(), 1);
+        assert_eq!(app.events[0].outcome, crate::history::Outcome::Failed);
+        app.restart_with(|_| panic!("must not retry an acknowledged failure"))
+            .unwrap();
+        let mut terminal =
+            ratatui::Terminal::new(ratatui::backend::TestBackend::new(80, 24)).unwrap();
+        terminal
+            .draw(|frame| crate::tui::ui::ui(frame, &mut app))
+            .unwrap();
+        let text = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|c| c.symbol())
+            .collect::<String>();
+        assert!(text.contains("fixture restart failure"));
+    }
+
+    #[test]
+    fn successful_restart_with_failed_refresh_is_not_reported_as_action_failure() {
+        let mut target = process(10, 3000);
+        target.container_name = Some("fixture".into());
+        let mut app = app(vec![target.clone()]);
+        app.input_mode = InputMode::ConfirmRestart(target);
+        app.restart_with_refresh(
+            |_| Ok(()),
+            |_| Err(anyhow::anyhow!("fixture refresh failed")),
+        )
+        .unwrap();
+        assert_eq!(app.events.len(), 1);
+        assert_eq!(app.events[0].outcome, crate::history::Outcome::Success);
+        assert!(
+            matches!(&app.input_mode,InputMode::CompletedWithWarning(text) if text.contains("Restart request completed") && text.contains("fixture refresh failed"))
+        );
+        app.restart_with_refresh(
+            |_| panic!("must not restart twice"),
+            |_| panic!("must not refresh through confirmation twice"),
+        )
+        .unwrap();
+        assert_eq!(app.events.len(), 1);
+        let mut terminal =
+            ratatui::Terminal::new(ratatui::backend::TestBackend::new(80, 24)).unwrap();
+        terminal
+            .draw(|frame| crate::tui::ui::ui(frame, &mut app))
+            .unwrap();
+        let text = terminal
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|cell| cell.symbol())
+            .collect::<String>();
+        assert!(text.contains("Action completed / refresh failed"));
+        assert!(text.contains("fixture refresh failed"));
+        assert!(!text.contains("Action failed"));
+    }
+
+    #[test]
+    fn successful_stop_refresh_warning_preserves_success_and_old_snapshot() {
+        let mut app = app(vec![process(10, 3000)]);
+        let target = app.processes[0].clone();
+        app.record_action(&target, crate::history::Action::Stop, &Ok(()));
+        app.finish_successful_action("Stop", |_| Err(anyhow::anyhow!("fixture refresh failed")));
+        assert!(
+            matches!(&app.input_mode,InputMode::CompletedWithWarning(text) if text.contains("Stop request completed"))
+        );
+        assert_eq!(app.events[0].outcome, crate::history::Outcome::Success);
+        assert_eq!(app.processes[0].pid, 10);
+        app.exit_inspect_mode();
+        assert!(matches!(app.input_mode, InputMode::Normal));
+    }
+
+    #[test]
+    fn color_disabled_resets_every_rendered_cell_including_modal() {
+        let mut app = app(vec![process(10, 3000)]);
+        app.settings.output.color = Some(true);
+        app.settings.ui.color = Some(false);
+        app.input_mode = InputMode::Message("failure details".into());
+        let mut terminal =
+            ratatui::Terminal::new(ratatui::backend::TestBackend::new(80, 24)).unwrap();
+        terminal
+            .draw(|frame| crate::tui::ui::ui(frame, &mut app))
+            .unwrap();
+        for cell in &terminal.backend().buffer().content {
+            assert_eq!(cell.fg, ratatui::style::Color::Reset);
+            assert_eq!(cell.bg, ratatui::style::Color::Reset);
         }
     }
 

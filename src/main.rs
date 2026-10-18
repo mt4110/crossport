@@ -3,7 +3,9 @@ mod config;
 mod core;
 mod display;
 mod exit;
+mod history;
 mod ops;
+mod permissions;
 mod tui;
 mod utils;
 
@@ -24,18 +26,36 @@ fn main() {
 
 fn run() -> Result<()> {
     let cli = Cli::parse();
-    let config = config::load_config(cli.config.as_ref()).unwrap_or_default();
+    let config = config::load_config(cli.config.as_ref())?;
 
-    // Capture system state once
-    // For UI, we might capture inside UI loop, but here we capture for CLI commands.
-    // If UI command, we can ignore this snapshot or pass it.
-    // TUI App::new() calls capture() again. That's fine.
-    let snapshot = SystemSnapshot::capture()?;
+    if let Some(color) = config.output.color {
+        colored::control::set_override(color);
+    }
+    let verbose = cli.verbose || config.output.verbose;
+    if let Some(Commands::History { json }) = &cli.command {
+        let events = history::read(&config.history)?;
+        if *json {
+            println!("{}", serde_json::to_string_pretty(&events)?);
+        } else if events.is_empty() {
+            println!("No saved history. Persistence is opt-in via history.enabled.");
+        } else {
+            for event in events.iter().rev() {
+                println!("{}", event.line());
+            }
+        }
+        return Ok(());
+    }
+    if matches!(&cli.command, Some(Commands::Ui)) {
+        return tui::run_tui(config);
+    }
+    let snapshot = if config.backend.strategy == config::BackendStrategy::Auto {
+        SystemSnapshot::capture()?
+    } else {
+        SystemSnapshot::capture_with(config.backend.strategy)?
+    };
 
     match &cli.command {
-        Some(Commands::Ui) => {
-            tui::run_tui()?;
-        }
+        Some(Commands::Ui | Commands::History { .. }) => unreachable!(),
         Some(Commands::Scan {
             from,
             to,
@@ -76,10 +96,15 @@ fn run() -> Result<()> {
                     io::stdout().flush()?;
 
                     // Re-capture
-                    let snapshot = SystemSnapshot::capture()?;
+                    let snapshot = SystemSnapshot::capture_with(config.backend.strategy)?;
                     let results = ops::scan_ports(&snapshot, final_from, final_to)?;
 
                     display::print_scan_result(&results);
+                    if verbose {
+                        for info in &results {
+                            display::print_verbose(info);
+                        }
+                    }
                     println!("\n(Ctrl+C to exit)");
 
                     std::thread::sleep(std::time::Duration::from_secs(1));
@@ -92,6 +117,11 @@ fn run() -> Result<()> {
                     println!("{}", json_output);
                 } else {
                     display::print_scan_result(&results);
+                    if verbose {
+                        for info in &results {
+                            display::print_verbose(info);
+                        }
+                    }
                 }
             }
         }
@@ -121,26 +151,30 @@ fn run() -> Result<()> {
                 return Ok(());
             }
 
-            #[cfg(unix)]
-            let _current_uid = nix::unistd::getuid();
-            #[cfg(not(unix))]
-            let _current_uid = 0; // Dummy value for Windows
-
             let final_interactive = interactive.or(config.kill.confirm).unwrap_or(true);
             let final_signal = signal.as_deref().or(config.kill.default_signal.as_deref());
 
+            let mut seen = std::collections::HashSet::new();
             for info in infos {
+                if !seen.insert(info.pid) {
+                    continue;
+                }
                 display::print_process_info(&info);
 
-                // Check permission (simplified)
-                // In a real app we'd check info.uid vs current_uid
-                // But ProcessInfo currently stores user as String.
-                // We should probably store uid in ProcessInfo or just trust the user string?
-                // For v0, let's just warn if not --all-users and it looks like system.
-
-                if !all_users && info.kind == crate::core::ProcessKind::System {
-                    println!("Skipping system process (use --all-users to override)");
-                    continue;
+                if verbose {
+                    display::print_verbose(&info);
+                }
+                if let Err(error) = permissions::ensure_owned(&info, *all_users) {
+                    save_event(
+                        &config.history,
+                        history::Event::new(
+                            info.pid,
+                            info.port,
+                            history::Action::Stop,
+                            history::Outcome::Failed,
+                        ),
+                    );
+                    return Err(error);
                 }
 
                 if final_interactive {
@@ -154,11 +188,30 @@ fn run() -> Result<()> {
                     }
                 }
 
-                ops::kill_process(info.pid, final_signal, *force, *dry_run)?;
+                let result = permissions::ensure_owned(&info, *all_users)
+                    .and_then(|_| ops::kill_process(info.pid, final_signal, *force, *dry_run));
+                let outcome = if result.is_err() {
+                    history::Outcome::Failed
+                } else if *dry_run {
+                    history::Outcome::DryRun
+                } else {
+                    history::Outcome::Success
+                };
+                save_event(
+                    &config.history,
+                    history::Event::new(info.pid, info.port, history::Action::Stop, outcome),
+                );
+                result?;
             }
         }
         None => {
-            if cli.ports.is_empty() {
+            let mut ports = cli.ports.clone();
+            if ports.is_empty()
+                && let Some(port) = config.general.default_port
+            {
+                ports.push(port);
+            }
+            if ports.is_empty() {
                 // Default behavior if no args? Maybe help?
                 // Or maybe scan default range?
                 // User said: "crossport scan -> default 3000-9999"
@@ -168,13 +221,16 @@ fn run() -> Result<()> {
                 return Ok(());
             }
 
-            for port in cli.ports {
+            for port in ports {
                 let infos = snapshot.get_process_info(port);
                 if infos.is_empty() {
                     println!("Port {}: free", port);
                 } else {
                     for info in infos {
                         display::print_process_info(&info);
+                        if verbose {
+                            display::print_verbose(&info);
+                        }
                     }
                 }
             }
@@ -182,4 +238,10 @@ fn run() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn save_event(config: &config::HistoryConfig, event: history::Event) {
+    if let Err(error) = history::record(config, &event) {
+        eprintln!("History save failed (operation is not retried): {error}");
+    }
 }

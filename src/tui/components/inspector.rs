@@ -74,10 +74,14 @@ impl Inspector {
             "TCP listening at snapshot; usage unknown"
         };
         let mut text = format!(
-            "Process: {} (PID {})\nUser: {}\nState: {}\nLast used: Unknown (not monitored)\nUptime: {}\nExecutable: {}\nApp bundle: {}\nParent: {} (PID {})\nProject: {}\nContainer / K8s target: {}\nCWD: {}\nListening endpoints (entire PID): {}\nAuto-restart: Unknown\nKind: {} (heuristic; not a safety assessment)\n\nArguments:\n{}",
+            "Process: {} (PID {})\nUser: {} / UID: {}\nState: {}\nLast used: Unknown (not monitored)\nUptime: {}\nExecutable: {}\nApp bundle: {}\nParent: {} (PID {})\nProject: {}\nContainer / K8s target: {}\nCWD: {}\nListening endpoints (entire PID): {}\nAuto-restart: Unknown\nKind: {} (heuristic; not a safety assessment)\n\nArguments:\n{}",
             process.cmd,
             process.pid,
             process.user,
+            process
+                .uid
+                .map(|uid| uid.to_string())
+                .unwrap_or_else(|| "Unknown / non-Unix".into()),
             state,
             uptime,
             path(process.executable.as_deref()),
@@ -136,7 +140,7 @@ impl Inspector {
 }
 
 // Hard-wrap paths and arguments as well as prose, keeping scroll bounds exact.
-fn wrap_text(text: &str, width: u16) -> String {
+pub(crate) fn wrap_text(text: &str, width: u16) -> String {
     let width = usize::from(width.max(1));
     let mut result = String::new();
     for (index, line) in text.split('\n').enumerate() {

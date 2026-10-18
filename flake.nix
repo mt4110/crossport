@@ -24,18 +24,19 @@
           cargo = toolchain;
           rustc = toolchain;
         };
+        scanTools = [ pkgs.lsof ] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.iproute2 pkgs.nettools ];
         crossport = rustPlatform.buildRustPackage {
           pname = "crossport";
           version = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).package.version;
           src = pkgs.lib.cleanSource ./.;
           cargoLock.lockFile = ./Cargo.lock;
           nativeBuildInputs = [ pkgs.makeWrapper ];
-          nativeCheckInputs = [ pkgs.lsof ];
+          nativeCheckInputs = scanTools;
           doCheck = true;
           buildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ pkgs.libiconv ];
           # Unix scanning requires lsof even outside a development shell.
           postInstall = ''
-            wrapProgram $out/bin/crossport --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.lsof ]}
+            wrapProgram $out/bin/crossport --prefix PATH : ${pkgs.lib.makeBinPath scanTools}
           '';
           meta = {
             description = "Inspect and manage local listening ports";
@@ -51,7 +52,7 @@
         };
         checks.default = crossport;
         devShells.default = pkgs.mkShell {
-          packages = [ toolchain pkgs.lsof ];
+          packages = [ toolchain ] ++ scanTools;
           buildInputs = pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ pkgs.libiconv ];
           shellHook = ''
             echo "Crossport: cargo run -- ui | cargo test | nix build"

@@ -43,8 +43,19 @@ pub fn kill_process(
     force: bool,
     dry_run: bool,
 ) -> Result<()> {
+    terminate_process(pid, _signal_name, force, dry_run, true)
+}
+
+pub fn terminate_process(
+    pid: u32,
+    _signal_name: Option<&str>,
+    force: bool,
+    dry_run: bool,
+    report: bool,
+) -> Result<()> {
+    macro_rules! report { ($($arg:tt)*) => { if report { println!($($arg)*); } }; }
     if dry_run {
-        println!("Would kill PID {}", pid);
+        report!("Would kill PID {}", pid);
         return Ok(());
     }
 
@@ -55,7 +66,7 @@ pub fn kill_process(
 
         if force {
             signal::kill(nix_pid, Signal::SIGKILL).context("Failed to send SIGKILL")?;
-            println!("Sent SIGKILL to {}", pid);
+            report!("Sent SIGKILL to {}", pid);
             return Ok(());
         }
 
@@ -67,30 +78,31 @@ pub fn kill_process(
                 _ => anyhow::bail!("Unknown signal: {}", sig_name),
             };
             signal::kill(nix_pid, sig).context("Failed to send signal")?;
-            println!("Sent {} to {}", sig_name, pid);
+            report!("Sent {} to {}", sig_name, pid);
             return Ok(());
         }
 
         // Default gentle strategy
-        if signal::kill(nix_pid, Signal::SIGINT).is_ok() {
+        signal::kill(nix_pid, Signal::SIGINT).context("Failed to kill process with SIGINT")?;
+        {
             std::thread::sleep(std::time::Duration::from_secs(1));
 
             if unsafe { libc::kill(pid as i32, 0) } == 0 {
-                if signal::kill(nix_pid, Signal::SIGTERM).is_ok() {
+                signal::kill(nix_pid, Signal::SIGTERM)
+                    .context("Failed to kill process with SIGTERM")?;
+                {
                     std::thread::sleep(std::time::Duration::from_secs(1));
                     if unsafe { libc::kill(pid as i32, 0) } == 0 {
                         signal::kill(nix_pid, Signal::SIGKILL)
                             .context("Failed to send SIGKILL (final attempt)")?;
-                        println!("Process {} did not exit, sent SIGKILL", pid);
+                        report!("Process {} did not exit, sent SIGKILL", pid);
                     } else {
-                        println!("Process {} exited after SIGTERM", pid);
+                        report!("Process {} exited after SIGTERM", pid);
                     }
                 }
             } else {
-                println!("Process {} exited after SIGINT", pid);
+                report!("Process {} exited after SIGINT", pid);
             }
-        } else {
-            println!("Process {} not found or already exited", pid);
         }
     }
 
@@ -113,7 +125,7 @@ pub fn kill_process(
         let output = cmd.output().context("Failed to execute taskkill")?;
 
         if output.status.success() {
-            println!("Killed process {}", pid);
+            report!("Killed process {}", pid);
         } else {
             let stderr = String::from_utf8_lossy(&output.stderr);
             anyhow::bail!("Failed to kill process {}: {}", pid, stderr);

@@ -1,13 +1,35 @@
-# Copy to ./crossport.toml, or use --config config/crossport.example.toml.
-# Only settings currently used by the CLI are included.
+# Copy to ./crossport.toml, or pass --config config/crossport.example.toml.
+# Files are selected, not merged. Unknown/invalid settings are errors.
+[general]
+# Optional: port inspected by bare `crossport` when no port/command is given.
+# default_port = 8088
+
+[backend]
+# auto: Unix lsof / Windows netstat
+# lsof: Unix; netstat: Linux/Windows; ss: Linux only.
+strategy = "auto"
+
 [scan]
 default_range = "3000-9999"
 
 [kill]
+# CLI only. TUI always confirms and uses staged termination.
 confirm = true
-# Optional: send only INT, TERM or KILL (Unix).
-# Leave unset to use the staged INT -> TERM -> KILL strategy.
+# INT, TERM or KILL (Unix). Unset uses INT -> TERM -> KILL.
 # default_signal = "TERM"
 
-# TUI stop confirmation and staged termination do not use [kill] settings.
-# ui.color, backend.strategy and output.* do not currently affect behavior.
+[output]
+# Optional color override for CLI and default for TUI.
+# color = false
+verbose = false # CLI human-readable process metadata; JSON is unchanged.
+
+[ui]
+# Overrides output.color for TUI; reverse-video selection remains usable.
+# color = false
+
+[history]
+# TUI always has session history (h). Disk persistence is opt-in.
+enabled = false
+max_entries = 200 # 1..10000, newest entries kept
+# Optional custom file. Default: platform local-data-dir/crossport/history.json.
+# path = "/absolute/private/path/crossport-history.json"
