@@ -1,6 +1,6 @@
 [package]
 name = "crossport"
-version = "0.5.0-rc.1"
+version = "0.5.0"
 edition = "2024"
 authors = ["mt <nico.as.nicos@gmail.com>"]
 description = "Cross-platform port helper CLI (skeleton)"

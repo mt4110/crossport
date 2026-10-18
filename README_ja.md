@@ -129,14 +129,14 @@ crossport suggest --env .env.local --key PORT
 ```
 
 
-### 試用版
+### 現行リリース
 
-`v0.5.0-rc.1` は、PRのマージ前に手元で使い込むための試用版です。
+`v0.5.0` が正式リリースです。
 GitHub Releaseからバイナリと `SHA256SUMS` を取得するか、Nixで実行できます。
 
 ```bash
-nix run github:mt4110/crossport/v0.5.0-rc.1 -- --version
-nix run github:mt4110/crossport/v0.5.0-rc.1 -- ui
+nix run github:mt4110/crossport/v0.5.0 -- --version
+nix run github:mt4110/crossport/v0.5.0 -- ui
 ```
 
 Gitタグに署名します。配布バイナリのコード署名・公証は行っていません。
