@@ -128,6 +128,19 @@ crossport suggest
 crossport suggest --env .env.local --key PORT
 ```
 
+
+### Preview release
+
+`v0.5.0-rc.1` is a prerelease for hands-on testing before the pending PR is merged.
+Download binaries and `SHA256SUMS` from its GitHub Release, or use Nix:
+
+```bash
+nix run github:mt4110/crossport/v0.5.0-rc.1 -- --version
+nix run github:mt4110/crossport/v0.5.0-rc.1 -- ui
+```
+
+The Git tag is signed; release binaries are not code-signed or notarized.
+
 ## Configuration
 
 Crossport selects one configuration file in this order; files are not merged.

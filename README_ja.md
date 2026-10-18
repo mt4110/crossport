@@ -128,6 +128,19 @@ crossport suggest
 crossport suggest --env .env.local --key PORT
 ```
 
+
+### 試用版
+
+`v0.5.0-rc.1` は、PRのマージ前に手元で使い込むための試用版です。
+GitHub Releaseからバイナリと `SHA256SUMS` を取得するか、Nixで実行できます。
+
+```bash
+nix run github:mt4110/crossport/v0.5.0-rc.1 -- --version
+nix run github:mt4110/crossport/v0.5.0-rc.1 -- ui
+```
+
+Gitタグに署名します。配布バイナリのコード署名・公証は行っていません。
+
 ## 設定
 
 設定ファイルを次の優先順で1つ選択します（ファイル間のマージはしません）。
